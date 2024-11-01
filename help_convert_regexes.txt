@@ -1,0 +1,33 @@
+my_pattern = r"({PREFIX})⇨([{NUMBER_CHARS}]*)(.+)($|。|<br/>&nbsp;|\n)"
+OPENING_BRACKETS = r"（「\[【〔\(『［〈《〔〘"
+CLOSING_BRACKETS = r"）」\]】〕\)』］〉》〕〙"
+KANJI = fr"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f"
+HIRAGANA = fr"あ-ゔ"
+NUMBER_CHARS = r"①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩"
+FIRST_NUMBER_CHARS = r"①❶⑴⒈➊➀🈩㊀㊤㋐１ⓐⒶ🅐"
+LAST_NUMBER_CHARS = r"⑳❿⑳⒇⒛➓➉🈪㊉㊦㋾９ⓩⓏ🅩"
+PREFIX = fr"[{NUMBER_CHARS}]|\d️⃣|^|。|<br\/>&nbsp;|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?"
+SUFFIX = fr"。|\n|<br\/>&nbsp;"
+ARROWS = fr"⇔→←☞⇒⇐"
+
+
+my_pattern = my_pattern.replace("{KANJI}", KANJI)
+my_pattern = my_pattern.replace("{ARROWS}", ARROWS)
+my_pattern = my_pattern.replace("{SUFFIX}", SUFFIX)
+my_pattern = my_pattern.replace("{NUMBER_CHARS}", NUMBER_CHARS)
+my_pattern = my_pattern.replace("{HIRAGANA}", HIRAGANA)
+my_pattern = my_pattern.replace("{OPENING_BRACKETS}", OPENING_BRACKETS)
+my_pattern = my_pattern.replace("{CLOSING_BRACKETS}", CLOSING_BRACKETS)
+my_pattern = my_pattern.replace("{PREFIX}", PREFIX)
+かげ
+pattern_to_bring_back = r"([①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]|\d️⃣|^|。|<br\/>&nbsp;|\n|[）」\]】〕\)』］〉》〕〙（「\[【〔\(『［〈《〔〘]| |　|記号.+?)⇒([①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]*)([^\d（「\[【〔\(『［〈《〔〘]+?)([①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]|\d️)?($|。|<br\/>&nbsp;|\n)"
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{KANJI}", "{KANJI}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{ARROWS}", "{ARROWS}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{SUFFIX}", "{SUFFIX}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{NUMBER_CHARS}", "{NUMBER_CHARS}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{HIRAGANA}", "{HIRAGANA}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{OPENING_BRACKETS}", "{OPENING_BRACKETS}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{CLOSING_BRACKETS}", "{CLOSING_BRACKETS}")
+pattern_to_bring_back = pattern_to_bring_back.replace(f"{PREFIX}", "{PREFIX}")
+
+print(pattern_to_bring_back)
