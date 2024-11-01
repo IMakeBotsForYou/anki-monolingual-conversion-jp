@@ -13,12 +13,12 @@ big_data_dictionary = {}
 
 BIG_DATA_FILE = "big_data.json"
 PRIORITY_ORDER = [
-    "1. 大辞泉",
-    "7. 三省堂国語辞典",
-    "5. 故事・ことわざ・慣用句オンライン",
-    "2. 実用日本語表現辞典",
-    "3. 大辞林",
-    # "4. 使い方の分かる 類語例解辞典",
+    # "1. 大辞泉",
+    # "7. 三省堂国語辞典",
+    # "5. 故事・ことわざ・慣用句オンライン",
+    # "2. 実用日本語表現辞典",
+    # "3. 大辞林",
+    "4. 使い方の分かる 類語例解辞典",
     # "6. 旺文社国語辞典 第十一版",
     # "8. Weblio",
 ]
@@ -662,6 +662,9 @@ def normalize_references(text: str, dictionary_path: str) -> str:
     if dictionary_path.endswith("大辞林"):
         ...
 
+    if dictionary_path.endswith("使い方の分かる 類語例解辞典"):
+        ...
+        
     text = re.sub(rf"・(?:{NUMBER_CHARS}]|\d️⃣|)", "", text)
     return text
 
@@ -709,7 +712,9 @@ def clean_definition(
     definition_text = re.sub(rf"([{NUMBER_CHARS}])[ ]+", r"\1", definition_text)
 
     definition_text = normalize_references(definition_text, dictionary_path)
-
+    if "⇒" in definition_text:
+        print(f"{word}【{reading}】")
+        print(definition_text)
     # Using endswith because I don't care about their order in the priority (or what order you chose to give them
     # in the folder name). Just matters that it     ends with the dictionary name.
     if dictionary_path.endswith("大辞泉"):

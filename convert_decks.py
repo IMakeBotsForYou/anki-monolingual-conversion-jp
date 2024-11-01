@@ -687,7 +687,7 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio):
 
 if __name__ == "__main__":
     big_data_dictionary = load_big_data(
-        big_data_dictionary=big_data_dictionary, override=False
+        big_data_dictionary=big_data_dictionary, override=True
     )
     not_in_weblio = load_not_in_weblio()
     # save_to_big_data(big_data_dictionary)
@@ -699,7 +699,8 @@ if __name__ == "__main__":
 
     # def get_definitions(word, reading, priority_order, big_data, not_in_weblio, look_in_weblio):
     # link_up(word, reading, definition_original, priority_order, dictionary_path, big_data, not_in_weblio, look_in_weblio=True)
-    word, reading = "総理大臣", "そうりだいじん"
+    word, reading = "末寺", "まつじ"
+    
     filter_service = get_definitions(
         word,
         reading,
