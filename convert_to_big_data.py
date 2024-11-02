@@ -13,35 +13,53 @@ big_data_dictionary = {}
 
 BIG_DATA_FILE = "big_data.json"
 PRIORITY_ORDER = [
-    # "1. 大辞泉",
-    # "7. 三省堂国語辞典",
-    # "5. 故事・ことわざ・慣用句オンライン",
-    # "2. 実用日本語表現辞典",
-    # "3. 大辞林",
+    "5. 故事・ことわざ・慣用句オンライン",
+    "7. 三省堂国語辞典",
+    "2. 実用日本語表現辞典",
+    "1. 大辞泉",
+    "3. 大辞林",
+    "6. 旺文社国語辞典 第十一版",
     "4. 使い方の分かる 類語例解辞典",
-    # "6. 旺文社国語辞典 第十一版",
-    # "8. Weblio",
+    "8. Weblio",
 ]
 OPENING_BRACKETS = r"（「\[【〔\(『［〈《〔〘"
 CLOSING_BRACKETS = r"）」\]】〕\)』］〉》〕〙"
 
 KANJI = rf"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f"
 HIRAGANA = rf"あ-ゔ"
+KANA = rf"あ-ヺ"
 NUMBER_CHARS = r"①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩"
 FIRST_NUMBER_CHARS = r"①❶⑴⒈➊➀🈩㊀㊤㋐１ⓐⒶ🅐"
 LAST_NUMBER_CHARS = r"⑳❿⑳⒇⒛➓➉🈪㊉㊦㋾９ⓩⓏ🅩"
-NUMBERS_AND_EMOJIS = fr"[{NUMBER_CHARS}]|\d️⃣"
-PREFIX = rf"{NUMBERS_AND_EMOJIS}|^|。|<br\/>&nbsp;|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?"
+NUMBERS_AND_EMOJIS = rf"[{NUMBER_CHARS}]|\d️⃣"
+PREFIX = rf"{NUMBERS_AND_EMOJIS}|^|。|・|<br\/>&nbsp;|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?"
 SUFFIX = rf"。|\n|<br\/>&nbsp;"
 ARROWS = rf"⇔→←☞⇒⇐⇨"
 NUMBER_CATEGORIES = {
+    "①": "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟",
+    "❶": "❶❷❸❹❺❻❼❽❾❿",
+    "⑴": "⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇",
+    "⒈": "⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛",
+    "➊": "➊➋➌➍➎➏➐➑➒➓",
+    "➀": "➀➁➂➃➄➅➆➇➈➉",
+    "🈩": "🈩🈔🈪",
+    "㊀": "㊀㊁㊂㊃㊄㊅㊆㊇㊈㊉",
+    "㊤": "㊤㊥㊦]",
+    "㋐": "㋐㋑㋒㋓㋔㋕㋖㋗㋘㋙㋚㋛㋜㋝㋞㋟㋠㋡㋢㋣㋤㋥㋦㋧㋨㋩㋪㋫㋬㋭㋮㋯㋰㋱㋲㋳㋴㋵㋶㋷㋸㋹㋺㋻㋼㋽㋾",
+    "１": "０１２３４５６７８９",
+    "ⓐ": "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ",
+    "Ⓐ": "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ",
+    "🅐": "🅐🅑🅒🅓🅔🅕🅖🅗🅘🅙🅚🅛🅜🅝🅞🅟🅠🅡🅢🅣🅤🅥🅦🅧🅨🅩",
+    "KeyCapEmoji": ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]  # In array because key is more than 1 character
+}
+NUMBER_CATEGORIES_REGEX = {
     "①": r"[①-⑳㉑-㉟]+",
     "❶": r"[❶-❿]+",
     "⑴": r"[⑴-⒇]+",
     "⒈": r"[⒈-⒛]+",
     "➊": r"[➊-➓]+",
     "➀": r"[➀-➉]+",
-    "🈩": r"[🈩🈔🈪]",
+    "🈩": r"[🈩🈔🈪]+",
     "㊀": r"[㊀-㊉]+",
     "㊤": r"[㊤-㊦]+",
     "㋐": r"[㋐-㋾]+",
@@ -314,8 +332,9 @@ def dict_to_text(d, level=0):
     result = ""
 
     for key, value in d.items():
-        if value in ["", ":"]:
+        if value in ["", ":", "\n"]:
             continue
+
         # Add a newline, then tabs based on the current level
         prefix = "└" if level == 0 else "└" + "─" * level
         result += "\n" + prefix + key
@@ -328,9 +347,17 @@ def dict_to_text(d, level=0):
         elif isinstance(value, dict):
             result += dict_to_text(value, level + 1)
 
-    result = re.sub(rf"(?:<br/>&nbsp;){2,}", r"<br/>&nbsp;", result)
-    result = re.sub(rf"\n{2,}", r"\n", result)
 
+    result = re.sub(rf"(?:<br/>&nbsp;|\n)+", r"\n", result)
+    result = re.sub(rf"^(└─*)({NUMBERS_AND_EMOJIS})└─*({NUMBERS_AND_EMOJIS})", 
+                r"\1\2 \3", 
+                result
+              )
+    a = result[:]
+    result = re.sub(r"^(└─*)(\n|<br/>&nbsp;|$)", 
+                     "", 
+                     result
+                    )
     return result
 
 
@@ -338,7 +365,7 @@ def find_first_category(text):
     """Identify the first number category that appears in the text."""
     first_category = None
     earliest_index = len(text) + 1  # Beyond bounds
-    for category, pattern in NUMBER_CATEGORIES.items():
+    for category, pattern in NUMBER_CATEGORIES_REGEX.items():
         match_object = re.search(pattern, text)
         if match_object:
             start_index = match_object.span()[0]
@@ -349,40 +376,70 @@ def find_first_category(text):
     return first_category
 
 
-def segment_by_category(text, category):
-    """Segments text by the first number characters of a specified category."""
-    pattern = NUMBER_CATEGORIES[category]
-    segments = re.split(f"({pattern})", text)
-    # Create dictionary with segments, using number chars as keys
+def segment_by_category(text, category, first_category, level):
+    """Segments text by the first number characters of a specified category.
+       If a key has a lower value than the previous or a jump of 2 or more,
+       it includes that key and the rest of the segment in the key's segment."""
+    
+    # Get the pattern for the category and initialize tracking variables
+    pattern = NUMBER_CATEGORIES_REGEX[category]
     segments_dict = {}
+    segments = re.split(f"({pattern[:-1]})", text)
+    previous = 0  # Keep track of the last processed key's value
+    previous_key = None
     i = 0
     while i < len(segments) - 1:
         if re.match(pattern, segments[i]):
             key = segments[i]
-            segments_dict[key] = segments[i + 1].strip()
-            i += 2
+            current_number = NUMBER_CATEGORIES[category].index(key) + 1
+            # Check if the current key is valid based on previous key's value
+            # print(f"{current_number=} {previous=} {key=} {previous_key=}")
+            is_referencing_other_level = level > 0 and first_category == category
+            if is_referencing_other_level or (current_number <= previous or current_number > previous + 1):
+                # If the current key is lower or jumps 2 or more, we're talking about a different key in reference
+                segments_dict[previous_key] += key + ''.join(segments[i + 1]).strip()
+            else:
+                # Otherwise, add the segment normally
+                segments_dict[key] = segments[i + 1].strip()
+                previous = current_number  # Update highest
+                previous_key = key
+
+            i += 2  # Move to the next potential key-value pair
         else:
-            i += 1
+            i += 1  # Move to the next segment if not a key pattern match
+    # print("\n\n")
+    # if "0" in segments_dict:
+        # print(segments_dict)
     return segments_dict
 
-
-def recursive_nesting_by_category(text):
+def recursive_nesting_by_category(text, first_category=None, next_category=None, level=0):
     """Recursively separates the text into nested dictionaries by number character categories."""
-    first_category = find_first_category(text)
-    if not first_category:
+    next_category = find_first_category(text)
+    if not next_category:
         return text  # Base case: no number characters left
+    if not first_category:
+        first_category = next_category
 
-    # Segment by the first identifier
-    segments_dict = segment_by_category(text, first_category)
+    try:
+        segments_dict = segment_by_category(text, first_category, next_category, level=level)
+    except KeyError:
+        return text  # Text, no longer has any segments
 
-    # Recursively process each segment
     for key, sub_text in segments_dict.items():
-        segments_dict[key] = recursive_nesting_by_category(sub_text)
+        segments_dict[key] = recursive_nesting_by_category(
+            sub_text, 
+            first_category=first_category, 
+            next_category=next_category, 
+            level=level+1
+        )
 
     return segments_dict
 
 
 def get_entry(ref_path, text):
+    if not ref_path:
+        return text
+
     entry_dict = recursive_nesting_by_category(text)
 
     current = entry_dict.copy()
@@ -394,9 +451,7 @@ def get_entry(ref_path, text):
         if find_correct:
             current = current[find_correct[0]]
         else:
-            raise KeyError(
-                f"Could not find the equivalent to {step} in {current.keys()}"
-            )
+            return current
 
     if isinstance(current, str):
         return current  # Final destination
@@ -467,32 +522,41 @@ def process_term_bank_file(file, dictionary_path, big_data):
             # if dictionary_path.endswith("大辞林"):
             #     data = data[0]
             for i, entry in enumerate(data):
-                word, reading, definitions_in_data = entry[0], entry[1], entry[5]
+                word, reading, entry_type, definitions_in_data = entry[0], entry[1], entry[2], entry[5]
+                # "大辞林" dictionary thing. 
+                if entry_type not in ["子", "句"]:
+                
+                    # Words can have different readings, and different definitions.
+                    # 最中（さいちゅう・さなか）etc.
+                    # If a word has multiple definitions for a single reading, run over all of them.
+                    # We are currently handling a single entry.
 
-                # Words can have different readings, and different definitions.
-                # 最中（さいちゅう・さなか）etc.
-                # If a word has multiple definitions for a single reading, run over all of them.
-                # We are currently handling a single entry.
+                    if not reading:
+                        reading = convert_word_to_hiragana(word)
+                    else:
+                        reading = convert_word_to_hiragana(reading)
 
-                if not reading:
-                    reading = convert_word_to_hiragana(word)
+                    definition_list = []
+
+                    for definition in definitions_in_data:
+                        definition_text = get_text_only_from_dictionary(
+                            word, reading, definition, dictionary_path
+                        )
+                        if definition_text:
+                            definition_list.append(definition_text)
+                        # else:
+                            # print(json.dumps(definition, ensure_ascii=False, indent=2))
+                            # print("\n")
+                    # Create new entry/extend existing one
                 else:
-                    reading = convert_word_to_hiragana(reading)
+                    definition_list = []
 
-                definition_list = []
-
-                for definition in definitions_in_data:
-                    definition_text = get_text_only_from_dictionary(
-                        word, reading, definition, dictionary_path
-                    )
-                    if definition_text:
-                        definition_list.append(definition_text)
-
-                # Create new entry/extend existing one
+                # if not definition_list and entry_type not in ["子", "句"]:
+                #     print(word)
+                #     print(json.dumps(entry, ensure_ascii=False, indent=2))
 
                 if not definition_list:  # No definitions for entry?
                     words_to_remove.append(word)
-
                 else:
                     edit_big_data(
                         big_data, dictionary_path, word, reading, definition_list
@@ -510,6 +574,61 @@ def process_term_bank_file(file, dictionary_path, big_data):
     # with open(file_path, "w", encoding="utf-8") as f:
     #     json.dump(data_after_edits, f, ensure_ascii=False, indent=2)
 
+def replace_furigana_references(text):
+    text = text.replace("（", " (").replace("）", ") ")
+    a_prefix = rf"({PREFIX})?"
+    words_and_furigana = rf"((?:([{KANJI}]+)(?: \([{HIRAGANA}]+)\) ?)+)([{HIRAGANA}]+)?"
+    a_suffix = rf"((?:{NUMBERS_AND_EMOJIS})+)?"
+    ref_with_furigana = re.compile(
+        rf"{a_prefix}⇒{words_and_furigana}{a_suffix}",
+        flags=re.UNICODE,
+    )
+    match_object = ref_with_furigana.finditer(text)
+    match_object_2 = ref_with_furigana.finditer(text)
+    # print([g for g in match_object_2])
+    links = []
+
+    if match_object:
+        for match in match_object:
+
+            # Since we can't just "guess" the kanji's readings,
+            # I'm only taking reading into account when it 
+            # describes the entire word.
+
+            reading_match = re.search(rf"( \(([{HIRAGANA}]+)\) ?)(?:(?:[{NUMBER_CHARS}]|(\d️⃣))+|\n|$)", match.group())
+            has_kanji = re.search(rf"[{KANJI}]", match.group())
+            furigana = None
+
+            if reading_match and has_kanji:
+                matched = reading_match.group(1)
+                furigana = "".join(["".join([y if y else "" for y in x]) for x in matched])
+
+            no_furigana_and_ref = re.findall(
+                rf"[a-zA-Z]|[{KANJI}]|(?:{NUMBERS_AND_EMOJIS})+$|[^(⇒][{HIRAGANA}]+[^)]?$",
+                match.group(),
+                flags=re.U,
+            )
+
+            number = match.groups()[3] if match.groups()[3] else ""
+
+            if no_furigana_and_ref:
+                no_furigana_and_ref = "".join(
+                    [x.replace(" ", "") for x in no_furigana_and_ref]
+                )
+
+            # No furigana that describes the entire word 
+            # ↓
+            # Replace with the no-furigana version
+
+            # Has furigana that describes the entire word
+            # ↓
+            # Don't replace
+
+            original = f"{match.group(2)}{match.group(4) if match.group(4) else ''}"
+            if not furigana:
+                text = text.replace(original, no_furigana_and_ref)
+
+    return text
 
 def normalize_references(text: str, dictionary_path: str) -> str:
     text = re.sub(rf" ?[{ARROWS}]", "⇒", text)
@@ -539,52 +658,9 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         2-4   異化
         10-11 ②
         """
-        a_prefix = fr"({PREFIX})?"
-        words_and_furigana = fr"((?:([{KANJI}]+)(?: \([{HIRAGANA}a-zA-Z]+\) ?)?|[{HIRAGANA}a-zA-Z]+)+)"
-        a_suffix = fr"((?:{NUMBERS_AND_EMOJIS})+)?"
-        ref_with_furigana = re.compile(
-            rf"{a_prefix}⇒{words_and_furigana}{a_suffix}",
-            flags=re.UNICODE,
-        )
-        match_object = ref_with_furigana.finditer(text)
-        match_object_2 = ref_with_furigana.finditer(text)
-        links = []
-        if match_object:
-            for match in match_object:
-                # If I ever want to make it actually link stuff up and consider the reading,
-                # I'll do it. But for now, I'll make it ignore the reading.
-                # reading = re.findall(fr" \(([{HIRAGANA}a-zA-Z]+)\) ", ref_with_furigana.group()).group()
-
-                no_furigana_and_ref = re.findall(
-                    rf"[a-zA-Z]|[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]|(?:[①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]|\d️⃣)+$|[^(⇒][あ-ゔ]+[^)]",
-                    match.group(),
-                    flags=re.U,
-                )
-
-                number = match.groups()[3] if match.groups()[3] else ""
-
-                if no_furigana_and_ref:
-                    no_furigana_and_ref = "".join(
-                        [x.replace(" ", "") for x in no_furigana_and_ref]
-                    )
-
-                if no_furigana_and_ref and f"⇒{no_furigana_and_ref}" not in text:
-                    parsed = (
-                        "Parsed link: " if match.group() != no_furigana_and_ref else ""
-                    )
-                    link = f"{parsed}⇒{no_furigana_and_ref}"
-                    if link not in links:
-                        text = rf"{text}\n{link}"
-                        links.append(link)
-
-                if (
-                    no_furigana_and_ref
-                    and no_furigana_and_ref
-                    != f"{match.group(2)}{match.group(4) if match.group(4) else ''}"
-                ):
-                    text = text.replace(f"{match.groups()[1:]}", "[linked later]")
+        
                 # flag = True
-
+        text = replace_furigana_references(text)
         text = re.sub(r"⇒{2,}", "⇒", text)
         text = text.replace("\\n", "\n")
         # convert に同じ format to ⇒ format for linking purposes later.
@@ -604,9 +680,9 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         # ...ラバー。→弾性ゴム\n② 植物から...
         # ⇒鉱工業生産指数①
         #                         To not include the number chars we want later. However, DO include digits, but not if follwoed by emoji data.
-        #                       Prefix                         Word                                   SOMETHING IN BRACKETS                        Reference Num or whatever
+        #                                                         Prefix                         Word                                   SOMETHING IN BRACKETS                        Reference Num or whatever
 
-        pattern_text = rf"([①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]|\d️⃣|^|。|<br\/>&nbsp;|\n|[）」\]】〕\)』］〉》〕〙（「\[【〔\(『［〈《〔〘]| |　|記号.+?)?⇒([^\n]+?)(?:（.+?）)?((?:[①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩]|\d️⃣)*?)(。|\n|<br\/>&nbsp;|$|・| |　)"
+        pattern_text = rf"({PREFIX})?⇒([^\n]+?)(?:（.+?）)?((?:{NUMBERS_AND_EMOJIS})*?)({SUFFIX}|$|・| |　)"
         pattern = re.compile(pattern_text)
 
         results = pattern.finditer(text)
@@ -617,35 +693,7 @@ def normalize_references(text: str, dictionary_path: str) -> str:
             for result in results:
                 _prefix, word, reference_number, suffix = result.groups()
                 reference_number = reference_number if reference_number else ""
-                if re.search(rf"{NUMBERS_AND_EMOJIS}", reference_number):
-                    # Reference number
-                    reference_numbers = convert_to_path(reference_number)
-                    try:
-                        references = "".join(
-                            [convert_reference_numbers(x) for x in reference_numbers]
-                        )
-                    except KeyError:
-                        print("[ERROR]\t", text, reference_numbers)
-                else:
-                    # Just a suffix
-                    references = reference_number
 
-                text = pattern.sub(f"{_prefix}⇒{word}{references}{suffix}", text)
-
-    if dictionary_path.endswith("三省堂国語辞典"):
-        # ①朝。午前。
-        # ②〘服〙←モーニングコート。
-        # ③←モーニングサービス。
-        # (!) Remeber,   definition = re.sub(fr"[⇒⇨←☞]", "⇒", definition)
-
-        pattern = re.compile(
-            rf"({NUMBERS_AND_EMOJIS}|^|。|<br\/>&nbsp;|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?)⇒([{NUMBER_CHARS}]*)([^\d{OPENING_BRACKETS}]+?)([{NUMBER_CHARS}]|\d️)?(・|$|。|<br\/>&nbsp;|\n)"
-        )
-        result = pattern.search(text)
-        if result:
-            _prefix, _, word, reference_number, suffix = result.groups()
-            reference_number = reference_number if reference_number else ""
-            if re.search(rf"{NUMBERS_AND_EMOJIS}", reference_number):
                 # Reference number
                 reference_numbers = convert_to_path(reference_number)
                 try:
@@ -654,18 +702,177 @@ def normalize_references(text: str, dictionary_path: str) -> str:
                     )
                 except KeyError:
                     print("[ERROR]\t", text, reference_numbers)
-            else:
-                references = reference_number
 
-            text = pattern.sub(f"{_prefix}⇒{word}{references}{suffix}", text)
+
+                text = pattern.sub(f"{_prefix}⇒{word}{reference_number}{suffix}", text)
+
+    if dictionary_path.endswith("三省堂国語辞典"):
+
+        # ⇒脇⑦・挙げ句②。
+        # ↓
+        # ⇒脇⑦　⇒挙げ句②。
+        reference_pattern = rf"([^\n・{NUMBER_CHARS}\d️⃣（ ]+)(?:（.+?）)?(?:([{NUMBER_CHARS}\d️⃣])*)"
+
+        pattern_mulitple = re.compile(
+            rf"⇒{reference_pattern}((?:・{reference_pattern}?(?=・|$|\n| |　|。))+)"
+        )
+
+        results_multiple = pattern_mulitple.finditer(text)
+
+        text_original = text[:]
+        if results_multiple:
+            for result in results_multiple:
+                reference_2_and_onwards = result.group(3).split("・")[1:]
+
+                for reference in reference_2_and_onwards:
+                    reference_word, reference_number = re.search(reference_pattern, reference).groups()
+                    reference_number = reference_number if reference_number else ""
+                    # Doing this later anyway
+                    # reference_numbers = convert_to_path(reference_number)
+                    # try:
+                    #     references = "".join(
+                    #         [convert_reference_numbers(x) for x in reference_numbers]
+                    #     )
+                    # except KeyError:
+                    #     print("[ERROR]\t", text, reference_numbers)
+
+                    text = text.replace(f"・{reference}", f" ⇒{reference}")
+
+
+        text = replace_furigana_references(text)
+
+        # ①朝。午前。            ☓
+        # ②〘服〙←モーニングコート。 ◯
+        # ③←モーニングサービス。　　 ◯
+        # (!) Remeber,   All arrows are now "⇒"
+
+        pattern = re.compile(
+            rf"({NUMBERS_AND_EMOJIS}|^|。|<br\/>&nbsp;|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?)⇒([{NUMBER_CHARS}]*)([^\d{OPENING_BRACKETS}]+?)([{NUMBER_CHARS}]|\d️)?(・|$|。|<br\/>&nbsp;|\n)"
+        )
+        results = pattern.finditer(text)
+        for result in results:
+            _prefix, _, word, reference_number, suffix = result.groups()
+            reference_number = reference_number if reference_number else ""
+
+            text = pattern.sub(f"{_prefix}⇒{word}{reference_number}{suffix}", text)
 
     if dictionary_path.endswith("大辞林"):
-        ...
+
+        # ［名］(スル)「アルバイト」の略。「夏休みにバイトする」
+        has_ryaku = re.compile(
+            rf"({PREFIX})「([^{OPENING_BRACKETS}]+?)」の略({SUFFIX})"
+        )
+        if has_ryaku.search(text):
+            adding_text = has_ryaku.sub(r"⇒\2", has_ryaku.search(text).group())
+            if adding_text not in text:
+                text += "\n" + adding_text
+
+
+        reference_pattern = rf"([^\n・{NUMBER_CHARS}\d️⃣（ ]+)(?:（.+?）)?(?:([{NUMBER_CHARS}\d️⃣])*)"
+
+        pattern_mulitple = re.compile(
+            rf"⇒{reference_pattern}((?:・{reference_pattern}?(?=・|$|\n| |　|。))+)"
+        )
+
+        results_multiple = pattern_mulitple.finditer(text)
+
+        text_original = text[:]
+        if results_multiple:
+            for result in results_multiple:
+                reference_2_and_onwards = result.group(3).split("・")[1:]
+
+                for reference in reference_2_and_onwards:
+
+
+                    reference_word, reference_number = re.search(reference_pattern, reference).groups()
+                    reference_number = reference_number if reference_number else ""
+
+                    text = text.replace(f"・{reference}", f" ⇒{reference}")
+
+        text = replace_furigana_references(text)
+    
+    text_original2 = text[:]
 
     if dictionary_path.endswith("使い方の分かる 類語例解辞典"):
         ...
-        
-    text = re.sub(rf"・(?:{NUMBER_CHARS}]|\d️⃣|)", "", text)
+    
+    if dictionary_path.endswith("旺文社国語辞典 第十一版"):
+
+        # 。⇒古人(1)：古人(2)
+        # ↓
+        # ⇒古人(1) ⇒古人(2)。
+        reference_pattern = rf"([^\n・{NUMBER_CHARS}\d️⃣（ ]+)(?:（.+?）)?(?:([{NUMBER_CHARS}\d️⃣])*)"
+
+        pattern_mulitple = re.compile(
+            rf"⇒{reference_pattern}((?:：{reference_pattern}?(?=・|$|\n| |　|。))+)"
+        )
+
+        results_multiple = pattern_mulitple.finditer(text)
+
+        text_original = text[:]
+        if results_multiple:
+            for result in results_multiple:
+                reference_2_and_onwards = result.group(3).split("：")[1:]
+
+                for reference in reference_2_and_onwards:
+                    reference_word, reference_number = re.search(reference_pattern, reference).groups()
+                    reference_number = reference_number if reference_number else ""
+
+                    text = text.replace(f"：{reference}", f" ⇒{reference}")
+
+
+        # ⇒けん（献）  -  Hiragana (kanji) 
+        hiragana_kanji_references = re.search(rf"⇒([{HIRAGANA}]+?)（([{KANJI}]+?)）", text)
+        if hiragana_kanji_references:
+            the_match = hiragana_kanji_references.group()
+            the_hiragana = hiragana_kanji_references.group(1)
+            the_hiragana = hiragana_kanji_references.group(2)
+            text = text.replace(the_match, f"⇒{KANJI} ({HIRAGANA})")
+
+
+        # ⇒言語（げんご）- Gengo (Furigana)
+        # Change full-width brackets to half-width for later function
+        text = re.sub(rf"（([{HIRAGANA}]+?)）", rf" (\1) ", text)
+        text = text = replace_furigana_references(text)
+
+        if text.endswith("\n⇒「使い分け」"):
+            text = text[:-len("\n⇒「使い分け」")]
+
+
+
+    text = re.sub(rf"・(?:[{NUMBER_CHARS}]|\d️⃣)", "", text)
+
+    # Search for reference pattern in the definition
+    reference_matches = re.finditer(
+        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:{NUMBERS_AND_EMOJIS})*)(?:。|$|\n|<br\/>&nbsp;| |　)", text
+    )
+    text_original3 = text[:]  # For printing purposes if I need debugging
+    # {prefix}{tag}⇒{word}{references}{suffix}
+    # already_linked = []
+    # If there's a reference in the definition
+    if reference_matches:
+        for reference_match in reference_matches:
+            last_char = reference_match.group()[-1]
+            suffix = last_char if last_char in ["。", "\n", "　", " ", ";"] else ""
+            if suffix == ";" and reference_match.group().endswith("<br/>&nbsp;"):
+                suffix = "<br/>&nbsp;"
+
+            referenced_word, furigana, reference_number_path = reference_match.groups()
+            furigana = furigana if furigana else ""
+
+            reference_number_path = reference_number_path if reference_number_path else ""
+            reference_numbers = convert_to_path(reference_number_path)
+
+            try:
+                reference_numbers = "".join(
+                    [convert_reference_numbers(x) for x in reference_numbers]
+                )
+            except KeyError:
+                print("[ERROR]\t", text, reference_numbers)
+
+            text = text.replace(reference_match.group(), f" ⇒{referenced_word}{furigana}{reference_numbers}")
+            text += suffix
+
     return text
 
 
@@ -684,9 +891,15 @@ def clean_definition(
     """
     # Remove the first line for specific dictionaries
 
+    my_word = word == "アウター"
+
+    if my_word:
+        print(f"{word}【{reading}】")
+        print(f"{definition_text}")
+        print()
+
     if word.endswith("の解説"):
         return None
-
     # Normalize \n's
     definition_text = definition_text.replace("\\n", "\n")
     # Weird character
@@ -710,13 +923,17 @@ def clean_definition(
 
     # Normalize spaces after numbers:
     definition_text = re.sub(rf"([{NUMBER_CHARS}])[ ]+", r"\1", definition_text)
+    
 
     definition_text = normalize_references(definition_text, dictionary_path)
-    if "⇒" in definition_text:
-        print(f"{word}【{reading}】")
-        print(definition_text)
+
+    # if "⇒" in definition_text:
+    #     print(f"{word}【{reading}】")
+    #     print(definition_text)
+    #     print()
     # Using endswith because I don't care about their order in the priority (or what order you chose to give them
-    # in the folder name). Just matters that it     ends with the dictionary name.
+    # in the folder name). Just matters that it ends with the dictionary name.
+
     if dictionary_path.endswith("大辞泉"):
         splitted = definition_text.split("\n")
         if len(splitted) > 1:
@@ -731,8 +948,6 @@ def clean_definition(
         # Remove remains of example sentences
         # ④: 納得する。合点がいく。・・・・・・・・・・・・・・・・・ (after parsing)
         definition_text = re.sub(r"・{2,}", "", definition_text)
-
-        # definition_text = re.sub(r"［(?:人名用漢字|常用漢字)］\s*［音］[ア-ン]+（漢）\s*[ア-ン]+（呉）\s*［訓］[{HIRAGANA}]+(?:{SUFFIX})", "", definition_text)
 
         # ［動ザ上一］「まん（慢）ずる」（サ変）の上一段化。
         # ［動ザ上一］「みそんずる」（サ変）の上一段化。「話題の展覧会を―・じる」
@@ -769,7 +984,7 @@ def clean_definition(
             r"",
             definition_text,
         )
-    # if my_word:
+    
     if dictionary_path.endswith("旺文社国語辞典 第十一版"):
         # Remove first line
         # あい‐しょう【哀傷】――シヤウ\n
@@ -781,17 +996,17 @@ def clean_definition(
         # あい【挨】\nアイ㊥\nおす\n筆順：\n
         # \n\n（字義）\n① おす。押しのける。「挨拶（あいさつ）（＝原義は押しのけて進む意。国 ...
 
-        if "筆順：\n" in definition_text:
-            definition_text = definition_text.split("筆順：\n")[1]
-        if "図版：" in definition_text:
-            definition_text = definition_text.split("図版：")[1]
+        if "筆順：" in definition_text:
+            definition_text = definition_text.split("筆順：")[1]
+        definition_text = re.sub(r"図版：\n?", "", definition_text) 
+        definition_text = definition_text.strip("<br/>&nbsp;")
 
         # Remove
         # （名・他スル）\n.
         # （形）《カロ・カツ（ク）・イ・イ・ケレ・○》\n
-        # But keep (…の略).
+        # But keep (…の略) ?
 
-        definition_text = re.sub(r"（.+?）(《.+?》)?\n", "", definition_text)
+        definition_text = re.sub(r"（.+?(?!の略)）(《.+?》)?\n", "", definition_text)
 
         # Remove
         # 〔可能〕あが・れる（下一）<br/>&nbsp;
@@ -831,13 +1046,14 @@ def clean_definition(
     if dictionary_path.endswith("大辞林"):
         no_period_quote = re.search(r"[^。」]$", definition_text)
         final_word_reference = re.search(
-            rf"⇒[{KANJI}{HIRAGANA}a-zA-Z]+$", definition_text
+            rf"⇒[{KANJI}{KANA}a-zA-Z・]+$", definition_text
         )
         if no_period_quote and not final_word_reference:
             return None
         definition_text = definition_text.split("補説欄")[0]
 
         # This is already handled in the scraping function
+
     if dictionary_path.endswith("実用日本語表現辞典"):
         ...
         # This is already handled in the scraping function
@@ -853,7 +1069,7 @@ def clean_definition(
         )
 
     # # Add line breaks before entry numbers
-    # definition_text = re.sub(fr"({NUMBERS_AND_EMOJIS})", r"<br/>&nbsp;\1", definition_text)
+    # definition_text = re.sub(rf"({NUMBERS_AND_EMOJIS})", r"<br/>&nbsp;\1", definition_text)
     # Clean up leading or trailing unwanted characters
 
     if definition_text:
@@ -861,20 +1077,30 @@ def clean_definition(
         # once
 
     # if "⇒" in definition_text:
-    #     definition_text = re.sub(fr"({PREFIX})⇒([{NUMBER_CHARS}]*)(.+)($|。|<br/>&nbsp;|\n)", r"\1\2\3\4", definition_text)
+    #     definition_text = re.sub(rf"({PREFIX})⇒([{NUMBER_CHARS}]*)(.+)($|。|<br/>&nbsp;|\n)", r"\1\2\3\4", definition_text)
 
     # Normalize numbers back
     definition_text = re.sub(rf"([{NUMBER_CHARS}][^ ]) ", r"\1 ", definition_text)
-
+    # if "遊里で客の相手となる遊女" in definition_text:
+        # print(4, definition_text)
     # Normalize line breaks
-    definition_text = definition_text.replace("\n", "<br/>&nbsp;").replace(
-        "\\n", "<br/>&nbsp;"
-    )
-
+    definition_text = definition_text\
+                      .replace("\n", "<br/>&nbsp;")\
+                      .replace("\\n", "<br/>&nbsp;")
+ 
     # Contract multiple linebreaks into a single linebreak
-    definition_text = re.sub(rf"(?:<br/>&nbsp;){2,}", r"<br/>&nbsp;", definition_text)
+    # For some fucking reason {2,} doesn't work so here we are.
+    definition_text = re.sub(r"(<br/>&nbsp;|\n|\\n)+", r"<br/>&nbsp;", definition_text)
+
+    # if "遊里で客の相手となる遊女" in definition_text:
+        # print(4.5, definition_text) 
+
     # Temp
     definition_text = definition_text.replace("<br/>&nbsp;", "\n")
+
+    # if "遊里で客の相手となる遊女" in definition_text:
+    
+        # print(5, definition_text)    
 
     definition_dict = recursive_nesting_by_category(definition_text)
     if isinstance(definition_dict, dict):
@@ -882,9 +1108,14 @@ def clean_definition(
     else:
         definition_text = definition_dict
 
-    definition_text = re.sub(r"。{2,}", "", definition_text)
+    definition_text = re.sub(r"。。+", "", definition_text)
 
     definition_text = definition_text.strip("\n").strip()
+
+
+    if "[可能]" in definition_text:
+        definition_text = definition_text.split("[可能]")[1]
+
     return definition_text
 
 
@@ -989,25 +1220,10 @@ def get_text_only_from_dictionary(
                         current_name = current["data"]["name"]
                         # Some of these have a "G" suffix, some don't, etc.
                         unwanted_tags = re.compile(
-                            "表記|品詞|用例|注記|歴史仮名|区別|ルビ|見出|可能形|異字同訓"
+                            "アクセント|表記|品詞|用例|注記|歴史仮名|区別|ルビ|見出|可能形|異字同訓"
                         )
-
                         if dic_name.endswith("大辞林"):
-                            if current_name == "ref":
-                                if isinstance(content, dict) and "content" in content:
-                                    # We already fetched it. This is current[content][content]
-                                    if isinstance(content, str):
-                                        if re.search(
-                                            rf"^[{NUMBER_CHARS}]$", content["content"]
-                                        ):
-                                            # Convert references to items in the same 
-                                            # entry to something that wont be picked up by
-                                            # the regexes later
-                                            content["content"] = (
-                                                f'({REFERENCE_NUMBER_MAP[content["content"]]})'
-                                            )
-
-                            elif (
+                            if (
                                 current_name == "単位名"
                                 and "content" in current["data"]
                             ):
@@ -1019,11 +1235,9 @@ def get_text_only_from_dictionary(
                             elif unwanted_tags.search(current_name):
                                 flag = False
 
-                        if (
-                            dic_name.endswith("使い方の分かる 類語例解辞典")
-                            and current_name != "意味"
-                        ):
-                            flag = False
+                        if (dic_name.endswith("使い方の分かる 類語例解辞典")):
+                            if current_name != "意味":
+                                flag = False
 
                         if dic_name.endswith("三省堂国語辞典"):
                             """
@@ -1090,6 +1304,7 @@ def get_text_only_from_dictionary(
         return "".join(result)
 
     my_text = get_non_recursive(definition_data)
+
     return clean_definition(word, reading, my_text, dic_name)
 
 

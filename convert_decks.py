@@ -16,6 +16,8 @@ from convert_to_big_data import (
     get_entry,
     PRIORITY_ORDER,
     load_big_data,
+    recursive_nesting_by_category,
+    dict_to_text
 )
 
 big_data_dictionary = {"8. Weblio": {}}
@@ -413,6 +415,7 @@ def fetch_entry_from_reference(reference_numbers: str, full_entry: str) -> str:
     
     fetch_entry_from_reference(that, "②❶") -> text2
     """
+
     if reference_numbers:
         reference_numbers_path = re.findall(r"〚(\d+)〛", reference_numbers)
         return get_entry(reference_numbers_path, full_entry)
@@ -444,47 +447,65 @@ def link_up(
 
     # Search for reference pattern in the definition
     reference_matches = re.finditer(
-        rf"⇒+([{NUMBER_CHARS}]*)(.+?)((?:〚\d〛)*)(?:。|$|\n|<br\/>&nbsp;)", definition
+        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:〚\d〛)*)(?:。|$|\n|<br\/>&nbsp;| |　)", definition
     )
 
     # {prefix}{tag}⇒{word}{references}{suffix}
-
+    already_linked = []
     # If there's a reference in the definition
     if reference_matches:
         for reference_match in reference_matches:
-            ref_number, referenced_word, original_entry_number = (
-                reference_match.groups()[2],
-                reference_match.groups()[1],
-                reference_match.groups()[0],
-            )
-            referenced_word = re.sub(r"（.+?）|・.+", "", referenced_word)
+            referenced_word, furigana, reference_number_path = reference_match.groups()
+            
+            if (referenced_word, reference_number_path) in already_linked:
+                continue
+            else:
+                already_linked.append((referenced_word, reference_number_path))
+
             # Maybe bad parsing?
-
-            if len(referenced_word) > 15:
+            if len(referenced_word) > 20:
                 return definition, dictionary_path
+            #   -------------------
+            #   rename and fix stuff from here on down
+            #   I have the referenced word, the furigana (if there is any), and reference number path.
+            #   
 
-            print(f"Attempting link-up for {dictionary_path}/{referenced_word}")
+            furigana_in_kakko = f"【{furigana}】" if furigana else ""
+            # print(f"Attempting link-up for {dictionary_path}/{referenced_word}{furigana_in_kakko}")
             # Try to fetch the referenced word definition
             ref_definition = None
+
             if referenced_word in big_data[dictionary_path]:
-                print(
-                    f"Fetching referenced definition for {referenced_word} from {dictionary_path}"
-                )
+                # print(
+                #     f"Fetching referenced definition for {referenced_word} from {dictionary_path}{furigana_in_kakko}"
+                # )
                 # Use helper function to get specific entry if a reference number is given
-                ref_definitions = big_data[dictionary_path][referenced_word]
+                if furigana:
+                    ref_definitions = {f"{furigana}": big_data[dictionary_path][referenced_word][furigana]}
+                else:
+                    ref_definitions = big_data[dictionary_path][referenced_word]
+
 
                 ref_definition = ""
                 for reading in ref_definitions:
                     ref_definition += f"{referenced_word}【{reading}】\n"
                     for meaning in ref_definitions[reading]:
                         ref_definition += f"{meaning}\n"
-                # print(ref_definition)
 
-                ref_definitions = fetch_entry_from_reference(ref_number, ref_definition)
+
+                ref_definition = fetch_entry_from_reference(reference_number_path, ref_definition)
 
 
             elif referenced_word in big_data["8. Weblio"]:
                 print("Fetching from local Weblio data")
+                dictionary_path = "8. Weblio"
+
+                if furigana:
+                    ref_definitions = {f"{furigana}": big_data[dictionary_path][referenced_word][furigana]}
+                else:
+                    ref_definitions = big_data[dictionary_path][referenced_word]
+
+
                 if reading in big_data["8. Weblio"][referenced_word]:
                     ref_definition = "<br/>&nbsp;".join(
                         big_data["8. Weblio"][referenced_word][reading]
@@ -495,9 +516,10 @@ def link_up(
                     )
 
             elif look_in_weblio and referenced_word not in not_in_weblio:
-                print("Attempting Weblio lookup")
+                # print("Attempting Weblio lookup")
+
                 list_of_weblio_results, not_in_weblio = get_from_weblio(
-                    referenced_word, big_data, not_in_weblio
+                    referenced_word, big_data, not_in_weblio, desired_reading=furigana
                 )
                 if list_of_weblio_results:
                     for la_palabra, ref_definition, yomikata in list_of_weblio_results:
@@ -507,7 +529,7 @@ def link_up(
                                 "8. Weblio",
                                 la_palabra,
                                 yomikata,
-                                [ref_definition],
+                                [fetch_entry_from_reference(ref_definition, "")],
                             )
                     ref_definition = "<br/>&nbsp;".join(
                         [
@@ -515,14 +537,22 @@ def link_up(
                             for i, entry in enumerate(list_of_weblio_results)
                         ]
                     )
-                    # save_to_big_data(big_data)
             # If a referenced definition was successfully fetched
 
             if ref_definition:
+
+                definition_dict = recursive_nesting_by_category(ref_definition)
+                if isinstance(definition_dict, dict):
+                    ref_definition = dict_to_text(definition_dict)
+                else:
+                    ref_definition = definition_dict
+                # todo change to <br/>&nbsp;
+
                 definition = (
                     definition
-                    + f"\n\n<hr>Linked {referenced_word}'s definition:\n{ref_definition}"
+                    + f"\n\n<hr>Linked {referenced_word}'s definition{reference_number_path}:\n{ref_definition}"
                 )
+
                 index = -1
 
                 if word in big_data[dictionary_path]:
@@ -535,11 +565,18 @@ def link_up(
                                 break
                     if index != -1 and reading in big_data[dictionary_path][word]:
                         big_data[dictionary_path][word][reading][index] = definition
-                    # edit_big_data(big_data, dictionary_path, referenced_word, reading, definition)
-                    # save_to_big_data(big_data)
-                return definition, dictionary_path
+
+                definition_original = definition
+                # return definition, dictionary_path
 
     # Return the original definition if no reference processing was needed
+    definition_original = re.sub(r"(?:\n|<br/>&nbsp;)+", 
+                                 "\n", 
+                                 definition_original
+                                )
+
+    definition_original = "<br/>&nbsp;".join([x for x in definition_original.split("\n") if x != "└"])
+
     return definition_original, dictionary_path
 
 
@@ -687,7 +724,7 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio):
 
 if __name__ == "__main__":
     big_data_dictionary = load_big_data(
-        big_data_dictionary=big_data_dictionary, override=True
+        big_data_dictionary=big_data_dictionary, override=False
     )
     not_in_weblio = load_not_in_weblio()
     # save_to_big_data(big_data_dictionary)
@@ -699,7 +736,7 @@ if __name__ == "__main__":
 
     # def get_definitions(word, reading, priority_order, big_data, not_in_weblio, look_in_weblio):
     # link_up(word, reading, definition_original, priority_order, dictionary_path, big_data, not_in_weblio, look_in_weblio=True)
-    word, reading = "末寺", "まつじ"
+    word, reading = "アウター", "あうたー"
     
     filter_service = get_definitions(
         word,
@@ -727,8 +764,8 @@ if __name__ == "__main__":
                         not_in_weblio,
                         look_in_weblio=False,
                     )
-                print(f"{i}: {dictionary}")
-                print(f"{version}【{version_reading}】")
+                print(f"<h1>{i}: {dictionary}</h1>")
+                print(f"<h2>{version}【{version_reading}】</h2>")
                 print(definition)
 
     """
