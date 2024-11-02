@@ -1,6 +1,7 @@
 """
 Weblio.jp scraper
 """
+
 from re import sub
 from time import sleep
 import requests

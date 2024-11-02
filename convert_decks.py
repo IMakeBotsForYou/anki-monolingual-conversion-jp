@@ -1,6 +1,7 @@
 """
 The main script.
 """
+
 import json
 import os
 import re
@@ -17,7 +18,7 @@ from convert_to_big_data import (
     PRIORITY_ORDER,
     load_big_data,
     recursive_nesting_by_category,
-    dict_to_text
+    dict_to_text,
 )
 
 big_data_dictionary = {"8. Weblio": {}}
@@ -409,10 +410,10 @@ def fetch_entry_from_reference(reference_numbers: str, full_entry: str) -> str:
     e.g.:
 
     ① Text
-    ② 
+    ②
       ❶ text2
       ❷ text3
-    
+
     fetch_entry_from_reference(that, "②❶") -> text2
     """
 
@@ -447,7 +448,8 @@ def link_up(
 
     # Search for reference pattern in the definition
     reference_matches = re.finditer(
-        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:〚\d〛)*)(?:。|$|\n|<br\/>&nbsp;| |　)", definition
+        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:〚\d〛)*)(?:。|$|\n|<br\/>&nbsp;| |　)",
+        definition,
     )
 
     # {prefix}{tag}⇒{word}{references}{suffix}
@@ -456,7 +458,7 @@ def link_up(
     if reference_matches:
         for reference_match in reference_matches:
             referenced_word, furigana, reference_number_path = reference_match.groups()
-            
+
             if (referenced_word, reference_number_path) in already_linked:
                 continue
             else:
@@ -468,7 +470,7 @@ def link_up(
             #   -------------------
             #   rename and fix stuff from here on down
             #   I have the referenced word, the furigana (if there is any), and reference number path.
-            #   
+            #
 
             furigana_in_kakko = f"【{furigana}】" if furigana else ""
             # print(f"Attempting link-up for {dictionary_path}/{referenced_word}{furigana_in_kakko}")
@@ -481,10 +483,13 @@ def link_up(
                 # )
                 # Use helper function to get specific entry if a reference number is given
                 if furigana:
-                    ref_definitions = {f"{furigana}": big_data[dictionary_path][referenced_word][furigana]}
+                    ref_definitions = {
+                        f"{furigana}": big_data[dictionary_path][referenced_word][
+                            furigana
+                        ]
+                    }
                 else:
                     ref_definitions = big_data[dictionary_path][referenced_word]
-
 
                 ref_definition = ""
                 for reading in ref_definitions:
@@ -492,19 +497,22 @@ def link_up(
                     for meaning in ref_definitions[reading]:
                         ref_definition += f"{meaning}\n"
 
-
-                ref_definition = fetch_entry_from_reference(reference_number_path, ref_definition)
-
+                ref_definition = fetch_entry_from_reference(
+                    reference_number_path, ref_definition
+                )
 
             elif referenced_word in big_data["8. Weblio"]:
                 print("Fetching from local Weblio data")
                 dictionary_path = "8. Weblio"
 
                 if furigana:
-                    ref_definitions = {f"{furigana}": big_data[dictionary_path][referenced_word][furigana]}
+                    ref_definitions = {
+                        f"{furigana}": big_data[dictionary_path][referenced_word][
+                            furigana
+                        ]
+                    }
                 else:
                     ref_definitions = big_data[dictionary_path][referenced_word]
-
 
                 if reading in big_data["8. Weblio"][referenced_word]:
                     ref_definition = "<br/>&nbsp;".join(
@@ -540,7 +548,6 @@ def link_up(
             # If a referenced definition was successfully fetched
 
             if ref_definition:
-
                 definition_dict = recursive_nesting_by_category(ref_definition)
                 if isinstance(definition_dict, dict):
                     ref_definition = dict_to_text(definition_dict)
@@ -570,12 +577,11 @@ def link_up(
                 # return definition, dictionary_path
 
     # Return the original definition if no reference processing was needed
-    definition_original = re.sub(r"(?:\n|<br/>&nbsp;)+", 
-                                 "\n", 
-                                 definition_original
-                                )
+    definition_original = re.sub(r"(?:\n|<br/>&nbsp;)+", "\n", definition_original)
 
-    definition_original = "<br/>&nbsp;".join([x for x in definition_original.split("\n") if x != "└"])
+    definition_original = "<br/>&nbsp;".join(
+        [x for x in definition_original.split("\n") if x != "└"]
+    )
 
     return definition_original, dictionary_path
 
@@ -737,7 +743,7 @@ if __name__ == "__main__":
     # def get_definitions(word, reading, priority_order, big_data, not_in_weblio, look_in_weblio):
     # link_up(word, reading, definition_original, priority_order, dictionary_path, big_data, not_in_weblio, look_in_weblio=True)
     word, reading = "アウター", "あうたー"
-    
+
     filter_service = get_definitions(
         word,
         reading,
@@ -746,10 +752,8 @@ if __name__ == "__main__":
         not_in_weblio,
         look_in_weblio=False,
     )
-    the_keys = ', '.join(filter_service.keys())
-    print(
-        f"Found definitions in the next dictionaries: {the_keys}"
-    )
+    the_keys = ", ".join(filter_service.keys())
+    print(f"Found definitions in the next dictionaries: {the_keys}")
     for dictionary in PRIORITY_ORDER:
         if dictionary in filter_service:
             for definition, version, version_reading, i in filter_service[dictionary]:
