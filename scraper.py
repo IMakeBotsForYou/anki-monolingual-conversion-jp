@@ -48,7 +48,7 @@ def remove_unwanted_text(content, word):
 
 def get_hiragana_only(text):
     text = convert_word_to_hiragana(text)
-    text = sub(r"\[(?:[あ-ゔー]+)(?:\n| |<br>)([あ-ゔ]+)\]", r"\1", text)
+    text = sub(r"\[(?:[あ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([あ-ゔ]+)\]", r"\1", text)
     text = sub(r"[^あ-ゔー]", r"", text)
     return text
 
@@ -76,8 +76,16 @@ def convert_word_to_hiragana(word):
 
 def scrape_weblio(word, desired_reading=None):
     # Clean the word, removing text within parentheses
+    word = sub(r"(?:<|く|｠|〔違い〕|\[派生\]).+", "", word)  # bad barsing. fix later
+    word = sub(r"（.+?）", "", word)  # bad barsing. fix later
 
-    word = sub(r"（.+?）", "", word)
+    if not word:
+        return []
+
+    if word[0] == "っ":
+        word = word[1:]
+    if "／" in word:  # bad barsing. fix later
+        word = word.split("／")[-1]
     url = f"https://www.weblio.jp/content/{word}"
 
     if not word:
@@ -85,7 +93,7 @@ def scrape_weblio(word, desired_reading=None):
 
     # Send a request to the URL
     response = requests.get(url, timeout=3)
-    sleep(3000)
+    sleep(1)
     if response.status_code != 200:
         print(f"Failed to retrieve data for {word}")
         return None
@@ -135,6 +143,8 @@ def scrape_weblio(word, desired_reading=None):
                 if yomikata_temp and not yomikata:
                     yomikata = yomikata_temp
                 gather_text.append(text)
+            elif sibling.name == "synonymsUnderDictWrp":
+                continue
             elif sibling.name.endswith("publish-date"):
                 continue
             elif sibling.name:
