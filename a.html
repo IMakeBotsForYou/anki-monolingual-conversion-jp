@@ -1,0 +1,41 @@
+<div style='position: relative; border: 2px solid #ECE0B2; border-radius: 10px; margin: 5px 5px 5px 5px;'><button id='textModeToggle' type='button' style='position: absolute; top: 10px; right: 10px; background-color: #ECE0B2;' onclick='toggleTextMode()'>Text Mode</button><div id='definitionsContainer' style='display:block; margin: 5px;'><div><button type='button' style='background-color: #CC2222; border-radius: 5px; border-color: #808080;' onclick="toggleDefinition('三省堂国語辞典')">三省堂国語辞典</button><div id='三省堂国語辞典' style='display:none;'><div><p><b>依り代</b> 【よりしろ】:<br />神をむかえて祭るとき、神が宿る木・石など。</p></div></div></div><br/><div><button type='button' style='background-color: #CC2222; border-radius: 5px; border-color: #808080;' onclick="toggleDefinition('大辞泉')">大辞泉</button><div id='大辞泉' style='display:none;'><div><p><b>依り代(憑代)</b> 【よりしろ】:<br />神霊が寄りつくもの。神霊は物に寄りついて示現 (じげん) されるという考えから、憑依 (ひょうい) 物としての樹木・岩石・動物・御幣など。</p></div></div></div><br/></div><div id='textModeContent' style='display:none; margin: 10px;'></div></div>
+            <script>
+            function toggleDefinition(id) {
+                var elem = document.getElementById(id);
+                elem.style.display = (elem.style.display === "none") ? "block" : "none";
+            }
+
+            function toggleTextMode() {
+                var definitionsContainer = document.getElementById("definitionsContainer");
+                var textModeContent = document.getElementById("textModeContent");
+                var isTextMode = textModeContent.style.display === "block";
+                var textModeButton = document.getElementById("textModeToggle");
+
+                if (isTextMode) {
+                    // Switch to full mode
+                    definitionsContainer.style.display = "block";
+                    textModeContent.style.display = "none";
+                    textModeButton.innerText = "Switch to Single Mode";
+                } else {
+                    // Switch to text mode
+                    definitionsContainer.style.display = "none";
+                    textModeButton.innerText = "Switch to Full Mode";
+
+                    // Try to get the first non-guess dictionary definition
+                    var firstDefinitionElem = document.querySelector("#definitionsContainer div:not([style*='color: #CC2222']) p");
+                    
+                    // Fallback to the first definition if all are guesses (all red)
+                    if (!firstDefinitionElem) {
+                        firstDefinitionElem = document.querySelector("#definitionsContainer div p");
+                    }
+
+                    // Display the extracted definition in text mode
+                    if (firstDefinitionElem) {
+                        var firstDefinition = firstDefinitionElem.innerText;
+                        textModeContent.innerText = "\n\n" + firstDefinition.split(":")[1];
+                        textModeContent.style.display = "block";
+                    }
+                }
+            }
+            </script>
+        

@@ -13,14 +13,19 @@ from scraper import convert_word_to_hiragana, get_hiragana_only
 big_data_dictionary = {}
 word_to_readings_map = {}
 BIG_DATA_FILE = "big_data.json"
+
+RED = "CC2222"
+YELLOW = "ECE0B2"
+GRAY = "808080"
+
 PRIORITY_ORDER = [
     "故事・ことわざ・慣用句オンライン",
-    "三省堂国語辞典",
     "実用日本語表現辞典",
+    "使い方の分かる 類語例解辞典",
+    "三省堂国語辞典",
+    "旺文社国語辞典 第十一版",
     "大辞泉",
     "大辞林",
-    "旺文社国語辞典 第十一版",
-    "使い方の分かる 類語例解辞典",
     "Weblio",
 ]
 OPENING_BRACKETS = r"<（「\[【〔\(『［〈《〔〘｟"

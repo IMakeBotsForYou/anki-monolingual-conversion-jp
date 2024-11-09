@@ -22,6 +22,7 @@ from convert_to_big_data import (
     get_entry,
     PRIORITY_ORDER,
     load_big_data,
+    RED, YELLOW, GRAY
     # recursive_nesting_by_category,
     # dict_to_text,
 )
@@ -200,40 +201,51 @@ def get_versions_of_word(word, reading, word_to_readings_map):
     # return list(set([x for x in versions if x[0]]))  # Remove dupes and empty ones
 
 
-def build_definition_html(data):
+def build_definition_html(data, text_mode_default=True):
     """
-    Builds an HTML string for a word and its definitions.
-    This is what will be in the anki card.
-    parameters:
-        - word: str
-        - data: dict
+    Builds an HTML string for a word and its definitions, including a text mode toggle.
+    This HTML will be used in the Anki card.
 
+    Parameters:
+        - data: dict containing dictionary information
+        - text_mode_default: bool indicating whether text mode is initially enabled
     """
-    # {
-    #   dictionary: [
-    #       {
-    #           "definitions": [definitions],
-    #           "word": words,
-    #           "reading": reading
-    #       }
-    #   ],
-    #    ...
-    # }
+
+    if not data:
+        return None
+
     guesses = []
-    html = ""
-    for dictionary in data:
-        if any([info["tag"] == "guess" for info in data[dictionary]]):
-            guesses.append(dictionary)
+    display = "none" if text_mode_default else "block"
+    html = f"<div id='definitionsContainer' style='display:{display}; margin: 5px;'>"
 
+    # Identify dictionaries marked as "guesses" and collect first non-guess definition for text mode
+    first_non_guess_definition = ''
+    for dictionary in data:
+        for info in data[dictionary]:
+            if info.get("tag") == "guess":
+                guesses.append(dictionary)
+            elif not first_non_guess_definition:
+                # Capture the first non-guess definition if it exists
+                first_non_guess_definition = "<br />As well as<br />".join(info["definitions"])
+
+    # Fallback to the first guess definition if all are guesses
+    if not first_non_guess_definition:
+        first_non_guess_definition = "<br />As well as<br />".join(data[list(data.keys())[0]][0]["definitions"])
+
+    if ":" in first_non_guess_definition:
+        first_non_guess_definition = "".join(first_non_guess_definition.split(":")[1:])
+
+    first_non_guess_definition = "<br /><br />" + first_non_guess_definition
+
+    # Generate HTML for each dictionary entry
     for dictionary in data.keys():
         display = 'none' if dictionary in guesses else 'block'
-        color = 'CC2222' if dictionary in guesses else 'ECE0B2'
+        color = RED if dictionary in guesses else YELLOW
         html += (
             f"<div>"
-            f"<button type='button' style='background-color: #{color};' onclick=\"toggleDefinition('{dictionary}')\">{dictionary}</button>"
+            f"<button type='button' style='background-color: #{color}; border-radius: 5px; border-color: #{RED};' onclick=\"toggleDefinition('{dictionary}')\">{dictionary}</button>"
             f"<div id='{dictionary}' style='display:{display};'>"
         )
-        # first = False
 
         for information in data[dictionary]:
             words = information["word"]
@@ -244,28 +256,32 @@ def build_definition_html(data):
                 f"<p><b>{words}</b> 【{reading}】:<br />{definitions}</p>"
                 f"</div>"
             )
-
         html += "</div>"
-    # #ECE0B2
+        html += "</div>"
+
+    # Wrap definitions in a container with an additional text mode toggle button
     if html:
-        html = "<div>" + html + "</div>"
-        html += """<script>
-function toggleDefinition(id) {
-    var elem = document.getElementById(id);
-    if (elem.style.display === "none") {
-        elem.style.display = "block";
-    } else {
-        elem.style.display = "none";
-    }
-}
-</script>
-        """
+        html += "</div>"
+        display_opposite = "block" if text_mode_default else "none"
+        mode_button_text = "Switch to Full Mode" if text_mode_default else "Switch to Single Mode"
+
+        # Wrap all content and add the text mode content div with initial definition if needed
+        html = (
+            f"<div style='position: relative; border: 2px solid #{YELLOW}; border-radius: 10px; margin: 5px;'>"
+            f"<button id='textModeToggle' type='button' style='position: absolute; top: 10px; right: 10px; background-color: #{YELLOW};' onclick='toggleTextMode()'>Switch to Full Mode</button>"
+            f"{html}"
+            f"<div id='textModeContent' style='display:{display_opposite}; margin: 10px;'>"
+            f"{first_non_guess_definition}"
+            f"</div>"
+            "</div>"
+        )
+
     else:
         html = None
-        # html = f"<p>No definitions found for {word}</p>"
-    # with open(f"htmls/{re.escape(word)}.html", "w", encoding="utf-8") as f:
-    # f.write(html)
+
+    # Final wrap
     return html
+
 
 
 def combine_dupes(data):
@@ -427,26 +443,28 @@ def get_definitions(
             already_seen = []
 
             # Process sorted entries
+            if not with_same_reading:
+                continue
+
             for information in with_same_reading:
-                for unique_definition_data in information:
-                    words = unique_definition_data["word"]
-                    reading = unique_definition_data["readings"][0]
-                    definitions = unique_definition_data["definitions"]
-                    tag = unique_definition_data["tag"]
+                words = information["word"]
+                reading = information["readings"][0]
+                definitions = information["definitions"]
+                tag = information["tag"]
 
-                    if definitions in already_seen:
-                        continue
-                    else:
-                        already_seen.append(already_seen)
+                if definitions in already_seen:
+                    continue
+                else:
+                    already_seen.append(already_seen)
 
-                    # Add definitions to return data
-                    if dictionary not in return_data:
-                        return_data[dictionary] = []
+                # Add definitions to return data
+                if dictionary not in return_data:
+                    return_data[dictionary] = []
 
-                    return_data[dictionary].append(
-                        {"definitions": definitions, "word": words, "reading": reading, "tag": tag}
-                    )
-                    found = True
+                return_data[dictionary].append(
+                    {"definitions": definitions, "word": words, "reading": reading, "tag": tag}
+                )
+                found = True
 
         except Exception as e:
             print(e)
@@ -822,7 +840,8 @@ def process_deck(
     - vocab_field_name (str): Column name for words.
     - definitions_field_name (str): Column name for definitions.
     """
-    deck_sorted = pd.read_excel(deck_file)
+    deck_sorted = pd.read_excel(deck_file, index_col=None)
+
     deck_size = len(deck_sorted)
     progress_interval = deck_size // 10  # 10% progress intervals
     words = deck_sorted[vocab_field_name].unique()
@@ -859,7 +878,7 @@ def process_deck(
             word_to_readings_map,
             not_in_weblio,
             look_in_weblio=False,
-            stop_at=2
+            stop_at=-1
         )
 #!todo: if guessing reading, put a tag on it that says so
         already_seen = []
@@ -936,6 +955,7 @@ def process_deck(
 
     output_file = f"[FIXED] {deck_file}"
     # print(deck_cleaned)
+
     deck_cleaned.to_excel(output_file, index=False)
     not_in_weblio = list(set(not_in_weblio))
     save_not_in_weblio(not_in_weblio)
@@ -961,7 +981,7 @@ def load_word_to_readings_map():
     return load_word_to_readings_map
 
 
-def change_to_monolingual(deck_name, big_data, not_in_weblio, word_to_readings_map):
+def change_to_monolingual(deck_name, big_data, not_in_weblio, word_to_readings_map, field_settings):
     """
     Converts an ANKI deck from bilingual to monolingual using dictionary files.
 
@@ -969,21 +989,26 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio, word_to_readings_m
     - deck_name (str): The name of the ANKI deck (without extension).
     """
 
+    vocab_field_name=       field_settings["vocab"]                 # VocabKanji
+    reading_field_name=     field_settings["reading"]  #    "Reading",    # VocabFurigana
+    definitions_field_name= field_settings["definition"]  # "Meaning",  # VocabDef
+
     print(f"Converting {deck_name}...")
     # anki_convert(f"{deck_name}.apkg", out_file=f"{deck_name}.xlsx")
     # # Read the .txt file, automatically using the first row as header
     df = pd.read_csv(
-        f"txt_exports/{deck_name}.txt", sep="\t", index_col=False
+        f"txt_exports/{deck_name}.txt", sep="\t", index_col=None
     )  # Change 'sep' if needed based on your file
     # Save to Excel
-    df.to_excel(f"{deck_name}.xlsx", index=False)
+
+    df.to_excel(f"{deck_name}.xlsx", index=True)
     # Word  Reading Pitch   Meaning tags
 
     process_deck(
         deck_file=f"{deck_name}.xlsx",
-        vocab_field_name="Word",  # VocabKanji
-        reading_field_name="Reading",  # VocabFurigana
-        definitions_field_name="Meaning",  # VocabDef
+        vocab_field_name=vocab_field_name,  # VocabKanji
+        reading_field_name=reading_field_name,  # VocabFurigana
+        definitions_field_name=definitions_field_name,  # VocabDef
         dictionary_priority_order=PRIORITY_ORDER,
         big_data=big_data,
         word_to_readings_map=word_to_readings_map,
@@ -992,11 +1017,12 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio, word_to_readings_m
 
     # Convert to CSV and cleanup
     output_file = f"[FIXED] {deck_name}.xlsx"
-    final_xlsx_file = pd.read_excel(output_file)
-    final_xlsx_file.to_csv(f"[FIXED] {deck_name}.csv", index=True, sep="\t")
+    final_xlsx_file = pd.read_excel(output_file, index_col=None)
+    final_xlsx_file.to_csv(f"[FIXED] {deck_name}.csv", index=False, sep="\t")
 
     os.remove(f"{deck_name}.xlsx")
-    os.remove(output_file)
+    os.remove(output_file)    
+    # Add script for toggle functions
 
     print(f"Conversion complete for {deck_name}!\n\n")
 
@@ -1009,11 +1035,73 @@ if __name__ == "__main__":
     word_to_readings_map = load_word_to_readings_map()
     # save_to_big_data(big_data_dictionary)
 
-    # deck_names = ["[JP-JP] N1", "[JP-JP] N2", "[JP-JP] N3", "[JP-JP] N4", "[JP-JP] N5"]
-    # for deck in deck_names:
-    change_to_monolingual("物語", big_data_dictionary, not_in_weblio, word_to_readings_map)
+
+    # vocab_field_name=       field_settings["vocab"]                 # VocabKanji
+    # reading_field_name=     field_settings["reading"]  #    "Reading",    # VocabFurigana
+    # definitions_field_name= field_settings["definition"]  # "Meaning",  # VocabDef
+
+
+    field_settings = {
+        "vocab": "VocabKanji",
+        "reading": "VocabFurigana",
+        "definition": "VocabDef"
+    }
+
+    deck_names = ["[JP-JP] N1", "[JP-JP] N2", "[JP-JP] N3", "[JP-JP] N4", "[JP-JP] N5", "物語"]
+    for deck in deck_names:
+        change_to_monolingual(deck, big_data_dictionary, not_in_weblio, word_to_readings_map, field_settings)
     
-    # word, reading = "悪口", "わるくち"
+    field_settings = {
+        "vocab": "Word",
+        "reading": "Reading",
+        "definition": "Meaning"
+    }
+
+    change_to_monolingual("N5-3", big_data_dictionary, not_in_weblio, word_to_readings_map, field_settings)
+
+    script = """<script>
+function toggleDefinition(id) {
+    var elem = document.getElementById(id);
+    elem.style.display = (elem.style.display === "none") ? "block" : "none";
+}
+
+function toggleTextMode() {
+    var definitionsContainer = document.getElementById("definitionsContainer");
+    var textModeContent = document.getElementById("textModeContent");
+    var isTextMode = textModeContent.style.display === "block";
+    var textModeButton = document.getElementById("textModeToggle");
+
+    if (isTextMode) {
+        // Switch to full mode
+        definitionsContainer.style.display = "block";
+        textModeContent.style.display = "none";
+        textModeButton.innerText = "Switch to Single Mode";
+    } else {
+        // Switch to text mode
+        definitionsContainer.style.display = "none";
+        textModeButton.innerText = "Switch to Full Mode";
+
+        // Try to get the first non-guess dictionary definition
+        var firstDefinitionElem = document.querySelector("#definitionsContainer div:not([style*='color: #{yellow}']) p");
+
+        // Fallback to the first definition if all are guesses (all red)
+        if (!firstDefinitionElem) {
+            firstDefinitionElem = document.querySelector("#definitionsContainer div p");
+        }
+
+        // Display the extracted definition in text mode
+        if (firstDefinitionElem) {
+            var firstDefinition = firstDefinitionElem.innerHTML;
+            textModeContent.innerText = "\\\\n" + firstDefinition.split(":")[1].replaceAll("<br>", "\\\\n");
+            textModeContent.style.display = "block";
+        }
+    }
+}
+</script>
+    """.replace("{red}", f"{RED}").replace("{yellow}", f"{YELLOW}")
+    print(f"Add this script to back card template:\n{script}")
+
+    # word, reading = "依代", "よりしろ"
 
     # word_definitions = get_definitions(
     #     word,
@@ -1023,16 +1111,25 @@ if __name__ == "__main__":
     #     word_to_readings_map,
     #     not_in_weblio,
     #     look_in_weblio=False,
+    #     stop_at=2
     # )
-    # # print(word_definitions)
-    # for dictionary in PRIORITY_ORDER:
-    #     if dictionary in word_definitions:
-    #         for i, information in enumerate(word_definitions[dictionary]):
-    #             version = information["word"]
-    #             version_reading = information["reading"]
-    #             definitions = information["definitions"]
-    #             # Usually just one
-    #             for j, definition in enumerate(definitions):
+    # already_seen = []
+
+    # for dictionary, dict_items in word_definitions.items():
+    #     for j, information in enumerate(dict_items):
+    #         word = information["word"].split("(")[0].strip()  # 可哀想 (可哀相)
+    #         reading = information["reading"]  #   ↑ only this
+    #         definitions = list(set(information["definitions"]))
+
+    #         if definitions in already_seen:
+    #             word_definitions[dictionary][j] = {}
+    #             continue
+    #             # del word_definitions[dictionary][j]
+    #         else:
+    #             already_seen.append(definitions)
+
+    #         try:
+    #             for k, definition in enumerate(definitions):
     #                 if "⇒" in definition:
     #                     definition, _ = link_up(
     #                         word,
@@ -1044,9 +1141,25 @@ if __name__ == "__main__":
     #                         not_in_weblio,
     #                         look_in_weblio=False,
     #                     )
-    #                     word_definitions[dictionary][i]["definitions"][j] = (
-    #                         definition  # .replace("\n", "<br />")
+
+    #                     word_definitions[dictionary][j]["definitions"][k] = (
+    #                         definition  # Update definition in place
     #                     )
-    # html_definition = build_definition_html(word_definitions)
+    #         except Exception as e:
+    #             print(f"Couldn't link {word}【{reading}】")
+    #             raise e
+    #             print("oh no", definition, word, reading, "is die.")
+
+    # # if not word_definitions:
+    # # print(cleaned_word, cleaned_reading)
+
+    # # word_definitions[dictionary]
+    # for dictionary in word_definitions:
+    #     word_definitions[dictionary] = [
+    #         entry for entry in word_definitions[dictionary] if entry
+    #     ]
+
+    # definition_html = build_definition_html(word_definitions)
+
     # with open("a.html", "w", encoding="utf-8") as f:
-    #     f.write(html_definition)
+    #     f.write(definition_html)
