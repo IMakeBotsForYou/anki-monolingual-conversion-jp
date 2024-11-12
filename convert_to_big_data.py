@@ -21,13 +21,14 @@ GRAY = "808080"
 PRIORITY_ORDER = [
     "故事・ことわざ・慣用句オンライン",
     "実用日本語表現辞典",
-    "使い方の分かる 類語例解辞典",
     "三省堂国語辞典",
     "旺文社国語辞典 第十一版",
     "大辞泉",
     "大辞林",
+    "使い方の分かる 類語例解辞典",
     "Weblio",
 ]
+
 OPENING_BRACKETS = r"<（「\[【〔\(『［〈《〔〘｟"
 CLOSING_BRACKETS = r">）」\]】〕\)』］〉》〕〙｠"
 
@@ -40,7 +41,7 @@ NUMBER_CHARS = r"①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪�
 FIRST_NUMBER_CHARS = r"①❶⑴⒈➊➀🈩㊀㊤㋐１ⓐⒶ🅐"
 LAST_NUMBER_CHARS = r"⑳❿⑳⒇⒛➓➉🈪㊉㊦㋾９ⓩⓏ🅩"
 NUMBERS_AND_EMOJIS = rf"[{NUMBER_CHARS}]|\d️⃣"
-PREFIX = rf"{NUMBERS_AND_EMOJIS}|^|。|・|<br />|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?"
+PREFIX = rf"{NUMBERS_AND_EMOJIS}|^|。|・|\n|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?"
 SUFFIX = rf"。|\n|<br ?/>|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　"
 ARROWS = r"⇔→←☞⇒⇐⇨"
 
@@ -94,6 +95,9 @@ REFERENCE_NUMBER_MAP = {
     "㊤": "上",
     "㊥": "中",
     "㊦": "下",
+    "🈩": "一",
+    "🈔": "二",
+    "三": "🈪",
     **{
         chr(i): chr(ord("ア") + (i - ord("㋐")))
         for i in range(ord("㋐"), ord("㋾") + 1)
@@ -143,12 +147,12 @@ def dict_to_text(d, level=0):
         elif isinstance(value, dict):
             result += dict_to_text(value, level + 1)
 
-    result = re.sub(r"(?:<br />|\n)+", r"\n", result)
+    result = re.sub(r"(?:\n|\n)+", r"\n", result)
     result = re.sub(
         rf"^(└─*)({NUMBERS_AND_EMOJIS})└─*({NUMBERS_AND_EMOJIS})", r"\1\2 \3 ", result
     )
     # a = result[:]
-    result = re.sub(r"(?:└─*)(?:\n|<br />|$)", "", result)
+    result = re.sub(r"(?:└─*)(?:\n|\n|$)", "", result)
     return result
 
 
@@ -181,7 +185,7 @@ def segment_by_category(text, category, first_category, level):
 
     # Get the pattern for the category and initialize tracking variables
     pattern = NUMBER_CATEGORIES_REGEX[category]
-    category_regex = re.compile(f"({pattern[:-1]})")
+    category_regex = re.compile(fr"({pattern[:-1]})")
     remove_prefixes = re.compile(r"└─*$")
 
     def clean_text(string):
@@ -402,7 +406,7 @@ def edit_big_data(big_data, dictionary_path, reading, word, definitions):
         }
     }
     """
-    if re.search(r"^\d+$", word):
+    if re.fullmatch(r"\d+", word):
         print(f"Skipping all-number word {word}")
         return
     # Ensure dictionary_path and reading exist
@@ -533,21 +537,33 @@ def normalize_references(text: str, dictionary_path: str) -> str:
 
         # flag = True
         text = replace_furigana_references(text)
+
         text = re.sub(r"⇒⇒+", "⇒", text)
         text = text.replace("\\n", "\n")
         # convert に同じ format to ⇒ format for linking purposes later.
         # Either in the beginning, between lines, or between periods.
         #                             Prefix   Word        Suffix
-        definition_text = re.sub(
+        text = re.sub(
             rf"({PREFIX})「(.+?) \((.+?)\) 」に同じ({SUFFIX})", r"\1⇒\3 (\2) \4 ", text
         )
-        definition_text = re.sub(
+
+        text = re.sub(
             rf"({PREFIX})「(.+?)」に同じ({SUFFIX})", r"\1⇒\2\3 ", text
         )
 
+        # 「荒涼1️⃣③」に同じ。
         # 。「言葉①」に同じ。
         # 。⇒言葉①
         # 。⇒言葉(1) (Later)
+        """
+        人を受け入れる心が狭いこと。度量が狭いこと。また、そのさま。「狭量な人間」 ⇒広量
+        Linked 広量
+        └②「荒涼
+        └─1️⃣ ②」に同じ。
+        └③「荒涼
+        └─1️⃣ ③」に同じ。
+        """
+
 
         # 。⇒内匠寮 (たくみりょう) ①
         # 。⇒IOA（Independent Olympic Athletes）
@@ -612,7 +628,9 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         if results_multiple:
             for i, result in enumerate(results_multiple):
                 first = i == 1  #                          Remove ⇒
+
                 references = re.split("・", result.group()[1:])
+
                 result_original = result.group()
                 result_after_changes = ""
                 for reference in references:
@@ -637,7 +655,7 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         # (!) Remeber,   All arrows are now "⇒"
 
         pattern = re.compile(
-            rf"({NUMBERS_AND_EMOJIS}|^|。|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?)⇒([{NUMBER_CHARS}]*)([^\d{OPENING_BRACKETS}]+?)([{NUMBER_CHARS}]|\d️)?(・|$|。|<br />|\n)"
+            rf"({NUMBERS_AND_EMOJIS}|^|。|\n|[{CLOSING_BRACKETS}{OPENING_BRACKETS}]| |　|記号.+?)⇒([{NUMBER_CHARS}]*)([^\d{OPENING_BRACKETS}]+?)([{NUMBER_CHARS}]|\d️)?(・|{SUFFIX})"
         )
         results = pattern.finditer(text)
         for result in results:
@@ -721,7 +739,7 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         text = replace_furigana_references(text)
 
         text = re.sub(rf"⇒([{HIRAGANA}]+) \(([{HIRAGANA}]+)\)", "⇒\1\2", text)
-        # これから起こる事柄を表す言い 方。<br />｟ ⇒過去・現在｠"
+        # これから起こる事柄を表す言い 方。\n｟ ⇒過去・現在｠"
 
         # ⇒古人(1)：古人(2)
         # ↓
@@ -765,15 +783,16 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         if text.endswith("\n⇒「使い分け」"):
             text = text[: -len("\n⇒「使い分け」")]
 
-    text = text.replace(" ⇒", "⇒")
-    text = re.sub(rf"・(?:[{NUMBER_CHARS}]|\d️⃣)", "", text)
+
 
     # Search for reference pattern in the definition
     reference_matches = re.finditer(
-        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:{NUMBERS_AND_EMOJIS})*)(?:。|$|\n|<br />| |　)",
+        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:{NUMBERS_AND_EMOJIS})*)(?:。|$|\n|\n| |　)",
         text,
     )
-
+    
+    text = text.replace(" ⇒", "⇒")
+    text = re.sub(rf"・(?:[{NUMBER_CHARS}]|\d️⃣)", "", text)
     # {prefix}{tag}⇒{word}{references}{suffix}
     # already_linked = []
     # If there's a reference in the definition
@@ -781,8 +800,8 @@ def normalize_references(text: str, dictionary_path: str) -> str:
         for reference_match in reference_matches:
             last_char = reference_match.group()[-1]
             suffix = last_char if last_char in ["。", "\n", "　", " ", ";"] else ""
-            if suffix == ";" and reference_match.group().endswith("<br />"):
-                suffix = "<br />"
+            if suffix == ";" and reference_match.group().endswith("\n"):
+                suffix = "\n"
 
             referenced_word, furigana, reference_number_path = reference_match.groups()
             furigana = furigana if furigana else ""
@@ -805,7 +824,7 @@ def normalize_references(text: str, dictionary_path: str) -> str:
             )
             text += suffix
 
-    return text.replace("\n", "<br />")
+    return text.replace("\n", "\n")
 
 
 def clean_definition(
@@ -824,15 +843,23 @@ def clean_definition(
     """
     # Remove the first line for specific dictionaries
 
-    my_word = word == "1"
+    my_word = word == ""
 
+
+    definition_text = definition_text.split("\nLinked")[0]
     if word.endswith("の解説"):
         return None
+
+    definition_text = definition_text.replace("<br />", "\n").replace("<br/>", "\n")
+
     # Normalize \n's
     definition_text = definition_text.replace("\\n", "\n")
     # Weird character
     definition_text = definition_text.replace(" ", " ")
+
+    # Already has some links? Remove them
     definition_text = definition_text.split("Linked")[0]
+    
     # Unecessary parts
     definition_text = re.sub(
         r"(?:\[補説\]|［補説］|［用法］|\[用法\]|\[可能\]|［可能］)(?:.|\n)+",
@@ -865,9 +892,13 @@ def clean_definition(
     if my_word:
         print(1, definition_text)
     if dictionary_path.endswith("大辞泉"):
-        splitted = definition_text.split("<br />")
+        splitted = definition_text.split("\n")
         if len(splitted) > 1:
-            definition_text = "<br />".join(splitted[1:])  # Remove first line
+            definition_text = "\n".join(splitted[1:])  # Remove first line
+
+
+        # アイ (呉) (漢) いとしい めでる かなしい おしむ
+        # Clear? 
 
         if "[可能]" in definition_text:
             definition_text = definition_text.split("[可能]")[0]
@@ -931,15 +962,15 @@ def clean_definition(
 
     if dictionary_path.endswith("旺文社国語辞典 第十一版"):
         definition_text = definition_text.replace("〔違い〕", "")
-        # (形) 《カロ・カツ (ク) ・イ・イ・ケレ・○》
-
-        definition_text = re.sub(r" ?\(.+?\) 《.+?》", "", definition_text)
-
         # Remove first line
         # あい‐しょう【哀傷】――シヤウ\n
-        splitted = definition_text.split("<br />")
+        splitted = definition_text.split("\n")
         if len(splitted) > 1:
-            definition_text = "<br />".join(splitted[2:])  # Remove first line
+            definition_text = "\n".join(splitted[1:])  # Remove first line
+
+        # (形) 《カロ・カツ (ク) ・イ・イ・ケレ・○》
+        definition_text = re.sub(r" ?\(.+?\) 《.+?》", "", definition_text)
+        definition_text = re.sub(r"^ \(.+?\) ", "", definition_text)
 
         # Remove the first line in items like this.
         # あい【挨】\nアイ㊥\nおす\n筆順：\n
@@ -953,7 +984,7 @@ def clean_definition(
             # definition_text = definition_text.split("(字義)")[1]
 
         definition_text = re.sub(r"図版：\n?", "", definition_text)
-        definition_text = definition_text.strip("<br />")
+        definition_text = definition_text.strip("\n")
 
         # Remove
         # （名・他スル）\n.
@@ -963,11 +994,14 @@ def clean_definition(
         definition_text = re.sub(r"（.+?(?!の略)）(《.+?》)?\n", "", definition_text)
 
         # Remove
-        # 〔可能〕あが・れる（下一）<br />
+        # 〔可能〕あが・れる（下一）\n
         # 〔他〕あ・げる（下一 ）
+        # 〔可能〕なつ・ける (下一)
+        # 〔文〕ちかづ・く (下二)
         definition_text = re.sub(
-            rf"〔.+?〕?[{HIRAGANA}・]+（.+?）({SUFFIX})", r"\1", definition_text
+            rf"(?:〔.+?〕)?[{HIRAGANA}・]+ \(.+?\) ({SUFFIX})", r"\1", definition_text
         )
+        # ちかづ・く (下二)
 
         # Remove everything after 〘使い分け〙
         if "〘使い分け〙" in definition_text:
@@ -976,6 +1010,9 @@ def clean_definition(
         # Remove everything after 〘ちがい〙
         if "〘ちがい〙" in definition_text:
             definition_text = definition_text.split("〘ちがい〙")[0]
+
+        # いたる・ちか・ちかし・なる・み・みる・もと・よしみ・より
+        definition_text = re.sub(rf"\\n[{HIRAGANA}・]+$", "", definition_text)
 
     if dictionary_path.endswith("使い方の分かる 類語例解辞典"):
         ...
@@ -988,7 +1025,7 @@ def clean_definition(
         definition_text = re.sub(r"〔〕", "", definition_text)
         ...
         # This is already handled in the scraping function
-        # definition_text = re.sub(r"^.+?｠<br />|「.+」(?:<br />)?", "", definition_text)
+        # definition_text = re.sub(r"^.+?｠\n|「.+」(?:\n)?", "", definition_text)
 
     if dictionary_path.endswith("事故・ことわざ・慣用句オンライン"):
         ...
@@ -997,6 +1034,8 @@ def clean_definition(
         # Remove spans like this
         # しりてしらざれ【知りて知らざれ】
         # 【失敗は成功のもと】
+        definition_text = re.sub(rf"[{HIRAGANA}]+【.+?】", "", definition_text)
+        definition_text = definition_text.replace("例文", "\n例文：")
 
     if dictionary_path.endswith("大辞林"):
         no_period_quote = re.search(r"[^。」]$", definition_text)
@@ -1033,35 +1072,33 @@ def clean_definition(
         )
 
     # # Add line breaks before entry numbers
-    # definition_text = re.sub(rf"({NUMBERS_AND_EMOJIS})", r"<br />\1", definition_text)
+    # definition_text = re.sub(rf"({NUMBERS_AND_EMOJIS})", r"\n\1", definition_text)
     # Clean up leading or trailing unwanted characters
 
     if definition_text:
-        definition_text = definition_text.strip("\n").strip("<br />")
+        definition_text = definition_text.strip("\n").strip("\n")
         # once
 
     # if "⇒" in definition_text:
-    #     definition_text = re.sub(rf"({PREFIX})⇒([{NUMBER_CHARS}]*)(.+)($|。|<br />|\n)", r"\1\2\3\4", definition_text)
+    #     definition_text = re.sub(rf"({PREFIX})⇒([{NUMBER_CHARS}]*)(.+)($|。|\n|\n)", r"\1\2\3\4", definition_text)
 
     # Normalize numbers back
     definition_text = re.sub(rf"([{NUMBER_CHARS}][^ ]) ", r"\1 ", definition_text)
     # if "遊里で客の相手となる遊女" in definition_text:
 
-    # Normalize line breaks
-    definition_text = definition_text.replace("\n", "<br />").replace("\\n", "<br />")
-
     # Contract multiple linebreaks into a single linebreak
     # For some fucking reason {2,} doesn't work so here we are.
-    definition_text = re.sub(r"(<br />|\n|\\n)+", r"<br />", definition_text)
+    definition_text = re.sub(r"(?:<br ?/>|\n|\\n)+", r"\n", definition_text)
 
     # if "遊里で客の相手となる遊女" in definition_text:
 
     # Temp
-    # definition_text = definition_text.replace("<br />", "\n")
+    # definition_text = definition_text.replace("\n", "\n")
 
     # if "遊里で客の相手となる遊女" in definition_text:
     if my_word:
         print(3, definition_text)
+
     definition_dict = recursive_nesting_by_category(definition_text)
     if isinstance(definition_dict, dict):
         definition_text = dict_to_text(definition_dict)
@@ -1080,6 +1117,10 @@ def clean_definition(
 
     if my_word:
         print(4, definition_text)
+    # Is just a link
+    if re.fullmatch(rf"⇒[a-zA-Z{KANJI}{KANA}]+(?: \(.+?\) ?)?(?:{SUFFIX}|$)", definition_text):
+        return None
+
     return definition_text.replace("\n", "<br />")
 
 
@@ -1283,8 +1324,8 @@ def get_text_only_from_dictionary(
                             elif "参照語義番号" in current_name:
                                 if "content" in content:
                                     if isinstance(content["content"], str):
-                                        reference_number = re.search(
-                                            rf"^({NUMBER_CHARS})$", content["content"]
+                                        reference_number = re.fullmatch(
+                                            rf"{NUMBER_CHARS}", content["content"]
                                         )
                                         if reference_number:
                                             content["content"] = (
