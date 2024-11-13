@@ -859,7 +859,7 @@ def clean_definition(
 
     # Already has some links? Remove them
     definition_text = definition_text.split("Linked")[0]
-    
+
     # Unecessary parts
     definition_text = re.sub(
         r"(?:\[補説\]|［補説］|［用法］|\[用法\]|\[可能\]|［可能］)(?:.|\n)+",
@@ -1034,7 +1034,7 @@ def clean_definition(
         # Remove spans like this
         # しりてしらざれ【知りて知らざれ】
         # 【失敗は成功のもと】
-        definition_text = re.sub(rf"[{HIRAGANA}]+【.+?】", "", definition_text)
+        definition_text = re.sub(rf"{reading}【{word}】", "", definition_text)
         definition_text = definition_text.replace("例文", "\n例文：")
 
     if dictionary_path.endswith("大辞林"):
@@ -1427,32 +1427,35 @@ def get_text_only_from_dictionary(
 
 def load_big_data(big_data_dictionary, override=False):
     if not override:
-        with open("big_data.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    else:
+        if os.path.exists("big_data.json"):
+            with open("big_data.json", "r", encoding="utf-8") as f:
+                return json.load(f)
+    elif override:
         print("You're about to override big_data, continue?\ny\\N")
         user_choice = input()
         if user_choice != "y":
             sys.exit()
-        for dictionary_path in PRIORITY_ORDER:
-            print(f"Loading {dictionary_path}")
-            add_dictionary_to_big_data(dictionary_path, big_data_dictionary)
 
-        # add_dictionary_to_big_data("旺文社国語辞典 第十一版", big_data_dictionary)
-        # add_dictionary_to_big_data("使い方の分かる 類語例解辞典", big_data_dictionary)
-        # add_dictionary_to_big_data("Weblio", big_data_dictionary)
+    print("Making big_data")
+    for dictionary_path in PRIORITY_ORDER:
+        print(f"Loading {dictionary_path}")
+        add_dictionary_to_big_data(dictionary_path, big_data_dictionary)
 
-        # Write the final big_data to a JSON file
-        save_to_big_data(big_data_dictionary)
-        return big_data_dictionary
+    # add_dictionary_to_big_data("旺文社国語辞典 第十一版", big_data_dictionary)
+    # add_dictionary_to_big_data("使い方の分かる 類語例解辞典", big_data_dictionary)
+    # add_dictionary_to_big_data("Weblio", big_data_dictionary)
+
+    # Write the final big_data to a JSON file
+    save_to_big_data(big_data_dictionary)
+    return big_data_dictionary
 
 
 def save_to_big_data(big_data_dictionary):
-    with open(BIG_DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(big_data_dictionary, f, ensure_ascii=False, indent=2)
-    with open("word_to_readings_map.json", "w", encoding="utf-8") as f:
-        json.dump(word_to_readings_map, f, ensure_ascii=False, indent=2)
-    print("Saved to big data")
+with open(BIG_DATA_FILE, "w", encoding="utf-8") as f:
+    json.dump(big_data_dictionary, f, ensure_ascii=False, indent=2)
+with open("word_to_readings_map.json", "w", encoding="utf-8") as f:
+    json.dump(word_to_readings_map, f, ensure_ascii=False, indent=2)
+print("Saved to big data")
 
 
 if __name__ == "__main__":

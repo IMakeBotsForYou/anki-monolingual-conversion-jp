@@ -199,7 +199,6 @@ def get_versions_of_word(word, reading, word_to_readings_map, extended=False):
 
 
 
-    versions.append((reading, reading))
     if word in word_to_readings_map:
         for possible_reading in word_to_readings_map[word]:
             versions.append((word, possible_reading))
@@ -207,6 +206,7 @@ def get_versions_of_word(word, reading, word_to_readings_map, extended=False):
     find_numbers = re.compile(r"[0-9０-９]")
     for w, r in versions.copy():
         if extended:
+            versions.append((r, r))
             if r and "が" in r:
                 versions.append(("".join([x for x in w if x != "が"]), "".join([x for x in r if x != "が"])))
 
