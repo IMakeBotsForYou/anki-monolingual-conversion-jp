@@ -1,55 +1,16 @@
 """
 Weblio.jp scraper
 """
-
-from re import sub
-from time import sleep
 import requests
-from bs4 import BeautifulSoup
-
-
-def remove_unwanted_text(content, word):
-    # Pattern for removing unwanted sections
-    content = sub(
-        r"(?:［常用漢字］　)?(［.］([ア-ヺ]+　?)*)?(?:（.）(?:（[ア-ヺ]+）)?)?(?:（.）(?:（[ア-ヺ]+）)?)?　(［.］([あ-ゔ]+　?)*)",
-        "",
-        content,
-    )
-
-    # Removing specific unwanted phrases in one pass
-    unwanted_patterns = [
-        "» 類語の一覧を見る",
-        "[続きの解説]",
-        f"({word} から転送)",
-        "[可能]",
-        f"「{word}」の発音・読み方",
-        f"「{word}」の類語、言い換え表現",
-        f"「{word}」の熟語・言い回し",
-        f"「{word}」の定義を英語で解説",
-        f"「{word}」の類語",
-        f"「{word}」に関連する用語・表現",
-        f"「{word}」とは・「{word}」の詳しい解説",
-        f"「{word}」の語源・由来",
-        f"「{word}」の類義語",
-        f"「{word}」に似た言葉",
-        "出典:",
-        "[用法]",
-        "[補説]",
-        "[下接語] ",
-    ]
-
-    for pattern in unwanted_patterns:
-        content = content.split(pattern)[0]
-
-    content = sub(rf"^「{word}」とは、", "", content).replace(" ", " ")
-
-    return content
-
+from bs4 import BeautifulSoup as bs4
+import json
+import re
+from time import sleep
 
 def get_hiragana_only(text):
     text = convert_word_to_hiragana(text)
-    text = sub(r"\[(?:[あ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([あ-ゔ]+)\]", r"\1", text)
-    text = sub(r"[^あ-ゔー]", r"", text)
+    text = re.sub(r"\[(?:[あ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([あ-ゔ]+)\]", r"\1", text)
+    text = re.sub(r"[^あ-ゔー]", r"", text)
     return text
 
 
@@ -63,147 +24,129 @@ def convert_word_to_hiragana(word):
     return word
 
 
-# def log(function):
-#     def inner(*args, **kwargs):
-#         result = function(*args, **kwargs)
-#         if not result[1]:
-#             with open("log.txt", "a", encoding="utf-8") as f:
-#                 f.write(f"{result[0]}\n")  # Use f-string for correct formatting
-#         return result  # Return the results
-
-#     return inner
-
-
-def scrape_weblio(word, desired_reading=None):
-    # Clean the word, removing text within parentheses
-    word = sub(r"(?:<|く|｠|〔違い〕|\[派生\]).+", "", word)  # bad barsing. fix later
-    word = sub(r"（.+?）", "", word)  # bad barsing. fix later
-
-    if not word:
-        return []
-
-    if word[0] == "っ":
-        word = word[1:]
-    if "／" in word:  # bad barsing. fix later
-        word = word.split("／")[-1]
-    url = f"https://www.weblio.jp/content/{word}"
-
-    if not word:
-        return None
-
-    # Send a request to the URL
-    response = requests.get(url, timeout=3)
-    sleep(1)
-    if response.status_code != 200:
-        print(f"Failed to retrieve data for {word}")
-        return None
-
-    # Parse the HTML content
-    soup = BeautifulSoup(response.text, "html.parser")
-    results = []
-
-    # Find all <h2> with the class "midashigo"
-    h2_midashigos = soup.find_all("h2", {"class": "midashigo"})
-    if not h2_midashigos:
-        print(f"No <h2> with class 'midashigo' found for {word}")
-        return None
-
-    for h2_midashigo in h2_midashigos:
-        if h2_midashigo.text.endswith("例文・使い方・用例・文例"):
-            continue
-
-        la_palabra = h2_midashigo.title if h2_midashigo.title else word
-
-        # Get the next <div> after each <h2>
-        div_after_h2 = h2_midashigo.find_next("div")
-        if not div_after_h2:
-            print(f"No <div> found after <h2> for {h2_midashigo.text}")
-            continue
-
-        # Remove all <a>, <p>, <h3>, and <div> tags by replacing them with their text content
-        for tag in div_after_h2.find_all(["a", "p", "h3", "div"]):
-            tag.replace_with(tag.get_text())
-
-        gather_text = []
-        yomikata = None
-
-        # Find the position of <br class="AM">
-        br_am = div_after_h2.find("br", {"class": "AM"})
-        element_to_loop_over = br_am if br_am else div_after_h2
-        looper = (
-            element_to_loop_over.next_siblings
-            if element_to_loop_over.name == "br"
-            else div_after_h2.contents
-        )
-
-        for sibling in looper:
-            if isinstance(sibling, str):
-                text = sibling.strip()
-                text, yomikata_temp = check(text, word)
-                if yomikata_temp and not yomikata:
-                    yomikata = yomikata_temp
-                gather_text.append(text)
-            elif sibling.name == "synonymsUnderDictWrp":
-                continue
-            elif sibling.name.endswith("publish-date"):
-                continue
-            elif sibling.name:
-                text = sibling.get_text(strip=True)
-                text, yomikata_temp = check(text, word)
-                if yomikata_temp and not yomikata:
-                    yomikata = yomikata_temp
-                gather_text.append(text)
-
-        if desired_reading and desired_reading != yomikata:
-            continue
-        final_content = "".join(filter(None, gather_text)).strip()
-
-        # Remove unwanted sections
-        if (
-            "日本語例文用例辞書はプログラムで機械的に例文を生成しているため、不適切な項目が含まれていることもあります。ご了承くださいませ"
-            in final_content
-        ):
-            continue
-
-        final_content = remove_unwanted_text(final_content, word)
-        final_content = sub(rf"^「{word}」とは、", "", final_content)
-        final_content = final_content.replace(" ", " ")
-        # 発音・読み方
-        if yomikata != "null" and len(final_content) < 400:
-            yomikata = get_hiragana_only(
-                convert_word_to_hiragana(yomikata if yomikata else word)
-            )
-            results.append((la_palabra, final_content, yomikata))
-        else:
-            href = f'<a href="{url}" title="{la_palabra} Definition from Weblio"</a>'
-            results.append((la_palabra, href, yomikata))
-
-    return results
-
-
-def check(text, word):
-    """
-    Checks an HTML element to see if we should add it
-    parameters:
-      - text: str
-      - word: str
-    """
-    word = sub("［.+?］", "", word)
-    skip_phrases = {
-        "別表記",
-        f"「{word}」の意味・「{word}」とは",
-        "の意味を調べる",
-        "とは / 意味",
+# Function to search for a word in Weblio's dictionary
+def WeblioSearch(word, desired_reading=None):
+    # Initialize dictionary to store the result
+    desired_dictionaries = ["百科事典", "デジタル大辞泉", "実用日本語表現辞典", "難読語辞典",
+                            "季語・季題辞典", " Wiktionary日本語版（日本語カテゴリ）"]
+    NetDict = {
+        'entries': []  # List to store each entry's details
     }
-    if any(phrase in text for phrase in skip_phrases):
-        return "", None
 
-    if "読み方" in text:
-        return "", text.replace("読み方：", "")
+    url=u'https://www.weblio.jp/content/amp/{word}'.format(word=word)
+    get_requests=requests.get(url,timeout=5)
+    content=get_requests.content
+    soup=bs4(content,'html.parser').find('div',attrs={'id':'main'})
 
-    text = sub(r"^\s?「?.+?」?とは?(?:（.+?）)?は、", "", text)
-    return text, None
+    # Removing specific unwanted phrases in one pass
 
+    unwanted_patterns_with_word = [x.replace("{word}", re.escape(word)) for x in [
+        "「{word}」の発音・読み方.+",
+        "「{word}」の類語、言い換え表現.+",
+        "「{word}」の熟語・言い回し.+",
+        "「{word}」の定義を英語で解説.+",
+        "「{word}」の類語.+",
+        "「{word}」に関連する用語・表現.+",
+        "「{word}」とは・「{word}」の詳しい解説.+",
+        "「{word}」の語源・由来.+",
+        "「{word}」の類義語.+",
+        "「{word}」に似た言葉.+",
+        "({word} から転送).+" ]
+    ]
 
-# print(scrape_weblio("図らずも"))
-# print(scrape_weblio("気が向かない"))
+    unwanted_patterns = [
+        r"\n英語\n.+",
+        r"\[続きの解説\].+",
+        r"» ?類語の一覧を見る.+",
+        r"\[可能\].+",
+        r"\[派生\].+",
+        r"\[用法\].+",
+        r"\[補説\].+",
+        r"\[下接語\].+",
+        r"［.+?］(?: ?\(.+?\))?",
+    ]
+
+    # Convert unwanted patterns list into a single regex pattern
+    pattern = '|'.join(unwanted_patterns_with_word) + "|".join(unwanted_patterns)
+    # Iterate over each pbarT and its corresponding kijiWrp
+    for pbar in soup.find_all('div', attrs={'class': 'pbarT'}):
+        # Extract the dictionary name from the pbarT's title attribute
+        dict_name_tag = pbar.find('a', attrs={'title': True})
+        dict_name = dict_name_tag['title'] if dict_name_tag else "Unknown Dictionary"
+        
+        # Find the corresponding kijiWrp for this dictionary
+        kiji_wrapper = pbar.find_next_sibling('div', class_='kijiWrp')
+        if not kiji_wrapper:
+            continue
+        # Initialize a list for storing entries under each dictionary name
+        dict_entries = []
+        # Process each kiji entry within the current kijiWrp
+        for entry in kiji_wrapper.find_all('div', attrs={'class': 'kiji'}):
+            # Extract the main word from 'midashigo'
+            word_tag = entry.find('h2', attrs={'class': 'midashigo'})
+            main_word = word_tag['title'] if word_tag else ""
+            
+            # Extract reading and definitions
+            definition_div = word_tag.find_next_sibling('div')
+            if definition_div:
+                # Get reading from the first <p> in 'Sgkdj'
+                reading_tag = definition_div.find('p')
+                reading = reading_tag.text.replace("読み方：", "").strip() if reading_tag else ""
+                
+                if reading:
+                    reading = re.sub(rf"\(.+?\)|（.+?）|出典.+", "", reading)
+                    if "," in reading:
+                        reading = reading.split(",")
+                    else:
+                        reading = [reading]
+
+                if dict_name not in desired_dictionaries:
+                    continue
+            
+                # Collect all paragraphs in 'Sgkdj' as the definition text
+                definition_parts = [
+                    p.text.strip() for p in definition_div.find_all(["p", "h3", "div", "li"])
+                    if p != reading_tag  # Skip the reading paragraph
+                ]
+                definition_parts = [x.replace(" ", " ").replace(" ", " ")
+                                    for x in 
+                                    definition_parts]
+
+                cleaned_definition = re.sub(pattern, '', "\n".join(definition_parts), flags=re.S)
+                cleaned_definition = re.sub(r"\n+", "\n", cleaned_definition)
+
+                if dict_name == "百科事典":
+                    cleaned_definition = re.sub(r"\[\d+\]", "", cleaned_definition)
+                elif dict_name == " Wiktionary日本語版（日本語カテゴリ）":
+                    cleaned_definition = cleaned_definition.split("発音(?)")[0]
+
+            else:
+                reading = ""
+                cleaned_definition = ""
+
+            # Extract synonyms from 'synonymsUnderDict'
+            synonyms_tag = entry.find('div', attrs={'class': 'synonymsUnderDict'})
+            synonyms = [
+                a.text.strip() for a in synonyms_tag.find_all('a')
+            ] if synonyms_tag else []
+
+            cleaned_definition = cleaned_definition.strip("\n")
+            if cleaned_definition:
+                # Add the gathered information as an entry
+                dict_entries.append({
+                    'word': main_word,
+                    'reading': reading,
+                    'definition': cleaned_definition,
+                    'synonyms': synonyms
+                })
+        
+        # Add this dictionary's entries to NetDict
+        if dict_entries:
+            NetDict[dict_name] = dict_entries
+    
+    return NetDict
+
+# Main code: Get input word and perform the Weblio search
+word = input("Enter the word to search: ")
+data = WeblioSearch(word)
+print(json.dumps(data, indent=2, ensure_ascii=False))
