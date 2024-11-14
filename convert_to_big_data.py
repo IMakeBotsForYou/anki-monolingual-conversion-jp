@@ -47,7 +47,7 @@ ARROWS = r"⇔→←☞⇒⇐⇨"
 
 NUMBER_CATEGORIES = {
     "①": "".join(chr(i) for i in range(ord("①"), ord("⑳") + 1))
-    + "".join(chr(i) for i in range(ord("㉑"), ord("㉟") + 1)),
+    +  "".join(chr(i) for i in range(ord("㉑"), ord("㉟") + 1)),
     "❶": "".join(chr(i) for i in range(ord("❶"), ord("❿") + 1)),
     "⑴": "".join(chr(i) for i in range(ord("⑴"), ord("⒇") + 1)),
     "⒈": "".join(chr(i) for i in range(ord("⒈"), ord("⒛") + 1)),
@@ -57,10 +57,10 @@ NUMBER_CATEGORIES = {
     "㊀": "".join(chr(i) for i in range(ord("㊀"), ord("㊉") + 1)),
     "㊤": "㊤㊥㊦",
     "㋐": "".join(chr(i) for i in range(ord("㋐"), ord("㋾") + 1)),
-    # "１": "".join(chr(i) for i in range(ord("０"), ord("９") + 1)),
     "ⓐ": "".join(chr(i) for i in range(ord("ⓐ"), ord("ⓩ") + 1)),
     "Ⓐ": "".join(chr(i) for i in range(ord("Ⓐ"), ord("Ⓩ") + 1)),
     "🅐": "".join(chr(i) for i in range(ord("🅐"), ord("🅩") + 1)),
+    "１": "".join(chr(i) for i in range(ord("１"), ord("９") + 1)),
     "(1)": [f"({i})" for i in range(ord("1"), ord("9") + 1)],
     "KeyCapEmoji": [f"{i}️⃣" for i in range(1, 10)],
 }
@@ -76,7 +76,6 @@ NUMBER_CATEGORIES_REGEX = {
     "㊀": r"[㊀-㊉]+",
     "㊤": r"[㊤-㊦]+",
     "㋐": r"[㋐-㋾]+",
-    # "１": r"[０-９]+",
     "ⓐ": r"[ⓐ-ⓩ]+",
     "Ⓐ": r"[Ⓐ-Ⓩ]+",
     "🅐": r"[🅐-🅩]+",
@@ -102,7 +101,6 @@ REFERENCE_NUMBER_MAP = {
         chr(i): chr(ord("ア") + (i - ord("㋐")))
         for i in range(ord("㋐"), ord("㋾") + 1)
     },
-    # **{chr(i): i - ord("０") for i in range(ord("１"), ord("９") + 1)},
     **{chr(i): chr(i - ord("ⓐ") + ord("a")) for i in range(ord("ⓐ"), ord("ⓩ") + 1)},
     **{chr(i): chr(i - ord("Ⓐ") + ord("A")) for i in range(ord("Ⓐ"), ord("Ⓩ") + 1)},
     **{chr(i): chr(i - ord("🅐") + ord("A")) for i in range(ord("🅐"), ord("🅩") + 1)},
@@ -131,6 +129,9 @@ def dict_to_text(d, level=0):
     """Convert a nested dictionary to a formatted string with indentation based on nesting level."""
     result = d["prefix"]
 
+    while isinstance(result, dict):
+        result = dict_to_text(result, level)
+
     for key, value in [(k, v) for k, v in d.items() if k != "prefix"]:
         if value in ["", ":", "\n"]:
             continue
@@ -155,22 +156,30 @@ def dict_to_text(d, level=0):
     result = re.sub(r"(?:└─*)(?:\n|\n|$)", "", result)
     return result
 
-
-def find_first_category(text):
+def find_first_category(text, weblio=False):
     """Identify the first number category that appears in the text."""
     first_category = None
     earliest_index = len(text) + 1  # Beyond bounds
-    for category, pattern in NUMBER_CATEGORIES_REGEX.items():
+    
+    # Copy and modify NUMBER_CATEGORIES_REGEX if weblio is True
+    if weblio:
+        modified_regex = {**NUMBER_CATEGORIES_REGEX, "１": r"[０-９]+"}
+    else:
+        modified_regex = NUMBER_CATEGORIES_REGEX.copy()
+
+    # Iterate through categories and patterns to find the first match
+    for category, pattern in modified_regex.items():
         match_object = re.search(pattern, text)
         if match_object:
             start_index = match_object.span()[0]
             if start_index < earliest_index:
                 earliest_index = start_index
                 first_category = category
+                
     return first_category
 
 
-def segment_by_category(text, category, first_category, level):
+def segment_by_category(text, category, first_category, level, weblio=False):
     """
     Segments text by the first number characters of a specified category.
     If a key has a lower value than the previous or a jump of 2 or more,
@@ -184,8 +193,16 @@ def segment_by_category(text, category, first_category, level):
     """
 
     # Get the pattern for the category and initialize tracking variables
-    pattern = NUMBER_CATEGORIES_REGEX[category]
-    category_regex = re.compile(fr"({pattern[:-1]})")
+        # Copy and modify NUMBER_CATEGORIES_REGEX if weblio is True
+    if weblio:
+        modified_regex = {**NUMBER_CATEGORIES_REGEX, "１": r"[０-９]+"}
+    else:
+        modified_regex = NUMBER_CATEGORIES_REGEX.copy()
+
+
+    pattern = modified_regex[category]
+
+    category_regex = re.compile(fr"({pattern})")
     remove_prefixes = re.compile(r"└─*$")
 
     def clean_text(string):
@@ -198,11 +215,12 @@ def segment_by_category(text, category, first_category, level):
     i = 0
     while i < len(segments) - 1:
         try:
+
             if re.match(pattern, segments[i]):
                 key = segments[i]
+
                 current_number = NUMBER_CATEGORIES[category].index(key) + 1
                 # Check if the current key is valid based on previous key's value
-
                 is_referencing_other_level = level > 0 and first_category == category
                 if is_referencing_other_level or (
                     current_number <= previous or current_number > previous + 1
@@ -212,6 +230,7 @@ def segment_by_category(text, category, first_category, level):
                     segments_dict[previous_key] += key + clean_text(
                         "".join(segments[i + 1])
                     )
+
                 else:
                     # Otherwise, add the segment normally
                     segments_dict[key] = clean_text(segments[i + 1])
@@ -232,19 +251,22 @@ def segment_by_category(text, category, first_category, level):
 
 
 def recursive_nesting_by_category(
-    text, first_category=None, next_category=None, level=0
+    text, first_category=None, next_category=None, level=0, weblio=False
 ):
     """Recursively separates the text into nested dictionaries by number character categories."""
 
-    next_category = find_first_category(text)
+    next_category = find_first_category(text, weblio=weblio)
+
     if not next_category:
         return text  # Base case: no number characters left
     if not first_category:
         first_category = next_category
 
+
     try:
         segments_dict = segment_by_category(
-            text, first_category=first_category, category=next_category, level=level
+            text, first_category=first_category, category=next_category, 
+            level=level, weblio=weblio
         )
     except KeyError:
         return text  # Text, no longer has any segments
@@ -253,12 +275,17 @@ def recursive_nesting_by_category(
         # if not isinstance(sub_text, str):
         #     print(json.dumps(segments_dict, indent=2, ensure_ascii=False))
         #     print(sub_text)
+
         segments_dict[key] = recursive_nesting_by_category(
             sub_text,
             first_category=first_category,
             next_category=next_category,
             level=level + 1,
+            weblio=weblio
         )
+
+    if weblio:
+        print(segments_dict)
 
     return segments_dict
 
@@ -1146,13 +1173,6 @@ def get_text_only_from_dictionary(
         while stack:
             current = stack.pop()
             if isinstance(current, str):
-                # reference_number = re.search(
-                #     rf"^({NUMBER_CHARS})$", current
-                # )
-                # if reference_number:
-                #     current = (
-                #         f'〚{REFERENCE_NUMBER_MAP[current]}〛'
-                #     )
                 result.append(current)
 
             elif isinstance(current, list):
@@ -1197,15 +1217,6 @@ def get_text_only_from_dictionary(
 
                 if len(current) == 2:
                     first, _ = current
-                    # if dic_name.endswith("使い方の分かる 類語例解辞典"):
-                    #     reading_data, ruigigo_data = first, second
-
-                    #     if "content" in ruigigo_data and "content" in reading:
-                    #         if isinstance(ruigigo_data["content"], str):
-                    #             actually_is_ruigigo = re.search(r"(.+?／)+(.+)", ruigigo_data["content"])
-                    #             if actually_is_ruigigo:
-                    #                 # The actual 類義語 part.
-                    #                 flag = False
 
                     # These two are essentially the same thing.
                     if dic_name.endswith("実用日本語表現辞典") or dic_name.endswith(
@@ -1429,7 +1440,11 @@ def load_big_data(big_data_dictionary, override=False):
     if not override:
         if os.path.exists("big_data.json"):
             with open("big_data.json", "r", encoding="utf-8") as f:
-                return json.load(f)
+                big_data = json.load(f)
+                print("Loaded big data. Dictionaries:")
+                print("\n".join(f"{index}:\t{dictionary}" for index, dictionary in enumerate(big_data.keys())))
+                return big_data
+
     elif override:
         print("You're about to override big_data, continue?\ny\\N")
         user_choice = input()
@@ -1451,11 +1466,11 @@ def load_big_data(big_data_dictionary, override=False):
 
 
 def save_to_big_data(big_data_dictionary):
-with open(BIG_DATA_FILE, "w", encoding="utf-8") as f:
-    json.dump(big_data_dictionary, f, ensure_ascii=False, indent=2)
-with open("word_to_readings_map.json", "w", encoding="utf-8") as f:
-    json.dump(word_to_readings_map, f, ensure_ascii=False, indent=2)
-print("Saved to big data")
+    with open(BIG_DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(big_data_dictionary, f, ensure_ascii=False, indent=2)
+    with open("word_to_readings_map.json", "w", encoding="utf-8") as f:
+        json.dump(word_to_readings_map, f, ensure_ascii=False, indent=2)
+    print("Saved to big data")
 
 
 if __name__ == "__main__":
