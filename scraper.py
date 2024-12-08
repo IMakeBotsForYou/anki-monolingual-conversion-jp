@@ -7,6 +7,11 @@ import json
 import re
 from time import sleep
 
+katakana_to_hiragana = {
+    chr(k): chr(k - 96) for k in range(12450, 12534) 
+}
+
+
 def get_hiragana_only(text):
     text = convert_word_to_hiragana(text)
     text = re.sub(r"\[(?:[あ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([あ-ゔ]+)\]", r"\1", text)
@@ -16,10 +21,7 @@ def get_hiragana_only(text):
 
 def convert_word_to_hiragana(word):
     # Katakana to Hiragana Conversion
-    katakana_to_hiragana = {
-        chr(k): chr(k - 96) for k in range(12450, 12534)
-    }  # Katakana to Hiragana
-    for k in katakana_to_hiragana:
+    for k in [letter for letter in katakana_to_hiragana if letter in word]:
         word = word.replace(k, katakana_to_hiragana[k])
     return word
 
@@ -158,7 +160,109 @@ def scrape_weblio(word, desired_reading=None):
         
     return NetDict
 
+
+def kotobank_clean_word(word, dictionary_name):
+    _OPENING_BRACKETS = r"<（「\[〔\(『［〈《〔〘｟"
+    _CLOSING_BRACKETS = r">）」\]〕\)』］〉》〕〙｠"
+
+    till_first_space = ["ブリタニカ国際大百科事典 小項目事典", 
+                        "日本大百科全書(ニッポニカ)",
+                        "日本大百科全書(ニッポニカ)"]
+
+    in_brackets = ["精選版 日本国語大辞典",
+                   "日本の美術館・博物館INDEX",
+                   "デジタル大辞泉"]
+
+    if dictionary_name in in_brackets:
+        word = re.sub(r"[あ-ゔー・‐〔〕()‥]+【([^】]+?)】", r"\1", word)
+# の【野】 と なれ山((やま))となれ
+    if dictionary_name in till_first_space:
+        word = word.split(" ")[0]
+    
+    word = re.sub(rf"[{_OPENING_BRACKETS}].+?[{_OPENING_BRACKETS}]", "", word)
+    word = re.sub(r"[‐・◦▽×= ]", "", word)
+    word = word.split("／")[0]
+    if dictionary_name not in till_first_space and dictionary_name not in in_brackets:
+        None
+
+    return word
+
+def kotobank_clean_definition(word, definition, dictionary_name):
+    remove_first_brackets = ["精選版 日本国語大辞典",
+                             "日本大百科全書(ニッポニカ)",
+                             "ブリタニカ国際大百科事典 小項目事典"]
+
+    remove_final_sections =       ["精選版 日本国語大辞典",
+                             "日本大百科全書(ニッポニカ)",
+                             "ブリタニカ国際大百科事典 小項目事典",
+                             "デジタル大辞泉"]
+
+    if dictionary_name in remove_first_brackets:
+        definition = re.sub(r"〘.+?〙", "", definition)
+
+    if dictionary_name in remove_final_sections:
+        definition = re.sub(r"\[(?:初出の実例|類語)\].+", "", definition)
+
+    return definition
+
+
+def scrape_kotobank(word, desired_reading=None):
+
+    url=u'https://kotobank.jp/search?q={word}&t=all'.format(word=word)
+    get_requests=requests.get(url,timeout=5)
+    content=get_requests.content
+    soup=bs4(content,'html.parser').find('div',attrs={'id':'mainArea'})
+
+    results = {}
+    # if word == "野となれ山となれ":
+    for dl in soup.find_all('dl'):
+        # Extract the word
+        word_tag = dl.find("h4").find("a") if dl.find("h4") else None
+        word_found = word_tag.text.strip() if word_tag else "N/A"
+        link = word_tag['href'] if word_tag and 'href' in word_tag.attrs else None
+
+        # Extract the dictionary name
+        dictionary_tag = dl.find("dd", class_="dictionary_name")
+        dictionary_name = dictionary_tag.text.strip() if dictionary_tag else "N/A"
+
+        # Extract the definition
+        description_tag = dl.find("dd", class_="description")
+        definition = description_tag.text.strip() if description_tag else "N/A"
+
+        word_found = kotobank_clean_word(word_found, dictionary_name)
+
+        if word_found != word:
+            continue  # Not the word we're looking for
+
+        # Check if the definition ends with "..."
+        # This means the definition isn't the full text
+
+        if definition.endswith('…') and link:
+            try:
+                # Fetch the content of the link
+                response = requests.get(f"https://kotobank.jp{link}")
+                if response.status_code == 200:
+                    linked_soup = bs4(response.text, 'html.parser')
+                    # Extract the full definition from the linked page (example selector, may vary)
+                    full_definition = linked_soup.find("section", class_="description")
+                    definition = full_definition.text.strip() if full_definition else definition
+
+            except Exception as e:
+                print(f"Failed to fetch the full definition from {link}: {e}")
+
+        definition = kotobank_clean_definition(word_found, definition, dictionary_name)
+
+        if not definition:
+            continue
+
+        if dictionary_name not in results:
+            results[dictionary_name] = []
+
+        results[dictionary_name].append(definition)
+
+    return results
+
 # # Main code: Get input word and perform the Weblio search
 # word = input("Enter the word to search: ")
-# data = scrape_weblio(word)
+# data = scrape_kotobank(word)
 # print(json.dumps(data, indent=2, ensure_ascii=False))

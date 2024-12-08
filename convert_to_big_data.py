@@ -17,6 +17,7 @@ BIG_DATA_FILE = "big_data.json"
 RED = "CC2222"
 YELLOW = "ECE0B2"
 GRAY = "808080"
+YELLOW = GRAY
 
 PRIORITY_ORDER = [
     "故事・ことわざ・慣用句オンライン",
@@ -27,6 +28,7 @@ PRIORITY_ORDER = [
     "大辞林",
     "使い方の分かる 類語例解辞典",
     "Weblio",
+    "Kotobank"
 ]
 
 OPENING_BRACKETS = r"<（「\[【〔\(『［〈《〔〘｟"
@@ -213,6 +215,8 @@ def segment_by_category(text, category, first_category, level, weblio=False):
     previous = 0  # Keep track of the last processed key's value
     previous_key = None
     i = 0
+    if "でのつけ根の下がわにあたる部分" in text:
+        print(segments)
     while i < len(segments) - 1:
         try:
 
@@ -222,9 +226,7 @@ def segment_by_category(text, category, first_category, level, weblio=False):
                 current_number = NUMBER_CATEGORIES[category].index(key) + 1
                 # Check if the current key is valid based on previous key's value
                 is_referencing_other_level = level > 0 and first_category == category
-                if is_referencing_other_level or (
-                    current_number <= previous or current_number > previous + 1
-                ):
+                if is_referencing_other_level or current_number != previous + 1:
                     # If the current key is lower or jumps 2 or more,
                     # we're talking about a different key in reference
                     segments_dict[previous_key] += key + clean_text(
@@ -283,9 +285,6 @@ def recursive_nesting_by_category(
             level=level + 1,
             weblio=weblio
         )
-
-    if weblio:
-        print(segments_dict)
 
     return segments_dict
 
@@ -857,7 +856,6 @@ def normalize_references(text: str, dictionary_path: str) -> str:
 def clean_definition(
     word: str, reading: str, definition_text: str, dictionary_path: str
 ) -> str:
-    # 〔③が原義〕 !todo
     """
     Cleans and formats the definition text based on the specific dictionary.
 
@@ -1003,6 +1001,7 @@ def clean_definition(
         # あい【挨】\nアイ㊥\nおす\n筆順：\n
         # \n\n（字義）\n① おす。押しのける。「挨拶（あいさつ）（＝原義は押しのけて進む意。国 ...
 
+
         if "筆順：" in definition_text:
             return None
             # definition_text = definition_text.split("筆順：")[1]
@@ -1025,8 +1024,9 @@ def clean_definition(
         # 〔他〕あ・げる（下一 ）
         # 〔可能〕なつ・ける (下一)
         # 〔文〕ちかづ・く (下二)
+        # 〔文〕なにげな・し (ク)
         definition_text = re.sub(
-            rf"(?:〔.+?〕)?[{HIRAGANA}・]+ \(.+?\) ({SUFFIX})", r"\1", definition_text
+            rf"(?:〔.+?〕)?[{HIRAGANA}・]+ \(.+?\)", r"", definition_text
         )
         # ちかづ・く (下二)
 
@@ -1116,6 +1116,11 @@ def clean_definition(
     # Contract multiple linebreaks into a single linebreak
     # For some fucking reason {2,} doesn't work so here we are.
     definition_text = re.sub(r"(?:<br ?/>|\n|\\n)+", r"\n", definition_text)
+
+    definition_text = re.sub(rf"^[{HIRAGANA}]+【.+?】", r"", definition_text)
+    definition_text = re.sub(rf"。類句", r"。<br />類句", definition_text)
+    definition_text = re.sub(rf"。異形", r"。<br />異形", definition_text)
+
 
     # if "遊里で客の相手となる遊女" in definition_text:
 
