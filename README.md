@@ -14,7 +14,7 @@ Dictionaries which don't have an exact match for the card will search using sole
 and then be marked with a red color. "red" or "marked" dictionaries are automatically collapsed.
 
 
-![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/futo.png?raw=true)
-![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/ikko.png?raw=true)
-![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/intern.png?raw=true)
+![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/ouhei.png?raw=true)
+![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/ouhei_expanded.png?raw=true)
+![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/nigeooseru.png?raw=true)
 
