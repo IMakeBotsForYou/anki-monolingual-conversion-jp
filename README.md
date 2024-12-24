@@ -5,7 +5,7 @@ A script to convert JP->X decks to JP-JP using yomitan dictionaries.
 Take your favourite YOMITAN dictionaries and export them into folders.
 How the dictionary folders should look.
 
-![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/folders.png?raw=true)
+![](https://github.com/IMakeBotsForYou/anki-monolingual-conversion-jp/blob/main/github_page_media/directory.png?raw=true)
 
 
 You can limit the amount of dictionaries by changing `stop_at` in `get_definitions`.
