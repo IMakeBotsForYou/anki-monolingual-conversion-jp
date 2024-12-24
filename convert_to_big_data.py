@@ -37,8 +37,8 @@ CLOSING_BRACKETS = r">）」\]】〕\)』］〉》〕〙｠"
 KANSUUJI = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
 
 KANJI = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f"
-HIRAGANA = r"あ-ゔ"
-KANA = r"あ-ヺ"
+HIRAGANA = r"ぁ-ゔ"
+KANA = r"ぁ-ヺ"
 NUMBER_CHARS = r"①-⑳❶-❿㉑-㉟⑴-⒇⒈-⒛➊-➓➀-➉🈩🈔🈪㊀-㊉㊤㊥㊦㋐-㋾１-９ⓐ-ⓩⒶ-Ⓩ🅐-🅩"
 FIRST_NUMBER_CHARS = r"①❶⑴⒈➊➀🈩㊀㊤㋐１ⓐⒶ🅐"
 LAST_NUMBER_CHARS = r"⑳❿⑳⒇⒛➓➉🈪㊉㊦㋾９ⓩⓏ🅩"
@@ -374,12 +374,13 @@ def process_term_bank_file(file, dictionary_path, big_data):
         big_data[dictionary_path] = {}
 
     file_path = os.path.join(dictionary_path, file)
-    words_to_remove = []
-
+    already_seen = []
+    new_data = []
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             for entry in data:
+
                 word, reading, entry_type, definitions_in_data = (
                     entry[0],
                     entry[1],
@@ -406,13 +407,21 @@ def process_term_bank_file(file, dictionary_path, big_data):
                     definition_list = []
 
                 word = word.replace("＝", "")
-                if not definition_list:  # No definitions for entry?
-                    words_to_remove.append(word)
-                else:
+                
+                if (word, reading, definition_list) not in already_seen and definition_list:
                     # Update call to `edit_big_data` with the new structure
                     edit_big_data(
                         big_data, dictionary_path, reading, word, definition_list
                     )
+                    new_data.append(entry)
+                else: 
+                    already_seen.append((word, reading, definition_list))
+                    
+        if len(new_data) != len(data):
+            print(f"Removed {len(data)-len(new_data)} items")
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(new_data, f, ensure_ascii=False, indent=2)
 
     except Exception as e:
         print(f"Error processing file {file}: {e}")
@@ -813,7 +822,7 @@ def normalize_references(text: str, dictionary_path: str) -> str:
 
     # Search for reference pattern in the definition
     reference_matches = re.finditer(
-        rf"⇒([^(]+?)( \([あ-ゔ]+\) )?((?:{NUMBERS_AND_EMOJIS})*)(?:。|$|\n|\n| |　)",
+        rf"⇒([^(]+?)( \([ぁ-ゔ]+\) )?((?:{NUMBERS_AND_EMOJIS})*)(?:。|$|\n|\n| |　)",
         text,
     )
     
@@ -914,8 +923,8 @@ def clean_definition(
 
     # Using endswith because I don't care about their order in the priority (or what order you chose to give them
     # in the folder name). Just matters that it ends with the dictionary name.
-    if my_word:
-        print(1, definition_text)
+    # if my_word:
+        # print(1, definition_text)
     if dictionary_path.endswith("大辞泉"):
         splitted = definition_text.split("\n")
         if len(splitted) > 1:
@@ -982,8 +991,8 @@ def clean_definition(
             definition_text,
         )
 
-    if my_word:
-        print(2, definition_text)
+    # if my_word:
+        # print(2, definition_text)
 
     if dictionary_path.endswith("旺文社国語辞典 第十一版"):
         definition_text = definition_text.replace("〔違い〕", "")
@@ -1063,6 +1072,8 @@ def clean_definition(
         # 【失敗は成功のもと】
         definition_text = re.sub(rf"{reading}【{word}】", "", definition_text)
         definition_text = definition_text.replace("例文", "\n例文：")
+        definition_text = re.sub(r"(異形|類句)", fr"<br><b>\1</b>：", definition_text)
+
 
     if dictionary_path.endswith("大辞林"):
         no_period_quote = re.search(r"[^。」]$", definition_text)
@@ -1077,8 +1088,9 @@ def clean_definition(
         startswith_comment = re.sub(r"^〔.+?〕", "", definition_text)
 
     if dictionary_path.endswith("実用日本語表現辞典"):
-        definition_text = re.sub(f"^{re.escape(word)}", "", definition_text)
-
+        definition_text = re.sub(fr"^「?{re.escape(word)}」?(?:とは、?)?", "", definition_text)
+        if definition_text.startswith("とは"):
+            definition_text = definition_text[2:]
         # This is already handled in the scraping function
 
     if dictionary_path.endswith("Weblio"):
@@ -1118,8 +1130,8 @@ def clean_definition(
     definition_text = re.sub(r"(?:<br ?/>|\n|\\n)+", r"\n", definition_text)
 
     definition_text = re.sub(rf"^[{HIRAGANA}]+【.+?】", r"", definition_text)
-    definition_text = re.sub(rf"。類句", r"。<br />類句", definition_text)
-    definition_text = re.sub(rf"。異形", r"。<br />異形", definition_text)
+    definition_text = re.sub(rf"。(?:<br />)?類句", r"。<br /><b>類句</b>", definition_text)
+    definition_text = re.sub(rf"。(?:<br />)?異形", r"。<br /><b>異形</b>", definition_text)
 
 
     # if "遊里で客の相手となる遊女" in definition_text:
@@ -1128,8 +1140,8 @@ def clean_definition(
     # definition_text = definition_text.replace("\n", "\n")
 
     # if "遊里で客の相手となる遊女" in definition_text:
-    if my_word:
-        print(3, definition_text)
+    # if my_word:
+        # print(3, definition_text)
 
     definition_dict = recursive_nesting_by_category(definition_text)
     if isinstance(definition_dict, dict):
@@ -1460,10 +1472,6 @@ def load_big_data(big_data_dictionary, override=False):
     for dictionary_path in PRIORITY_ORDER:
         print(f"Loading {dictionary_path}")
         add_dictionary_to_big_data(dictionary_path, big_data_dictionary)
-
-    # add_dictionary_to_big_data("旺文社国語辞典 第十一版", big_data_dictionary)
-    # add_dictionary_to_big_data("使い方の分かる 類語例解辞典", big_data_dictionary)
-    # add_dictionary_to_big_data("Weblio", big_data_dictionary)
 
     # Write the final big_data to a JSON file
     save_to_big_data(big_data_dictionary)

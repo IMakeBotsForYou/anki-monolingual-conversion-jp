@@ -8,14 +8,15 @@ import re
 from time import sleep
 
 katakana_to_hiragana = {
-    chr(k): chr(k - 96) for k in range(12450, 12534) 
+    chr(k): chr(k - 96) for k in range(12449, 12534) 
 }
+
 
 
 def get_hiragana_only(text):
     text = convert_word_to_hiragana(text)
-    text = re.sub(r"\[(?:[あ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([あ-ゔ]+)\]", r"\1", text)
-    text = re.sub(r"[^あ-ゔー]", r"", text)
+    text = re.sub(r"\[(?:[ぁ-ゔー]+)(?:/|／|・|\n| |<br ?\\?>)([ぁ-ゔ]+)\]", r"\1", text)
+    text = re.sub(r"[^ぁ-ゔー]", r"", text)
     return text
 
 
@@ -174,7 +175,7 @@ def kotobank_clean_word(word, dictionary_name):
                    "デジタル大辞泉"]
 
     if dictionary_name in in_brackets:
-        word = re.sub(r"[あ-ゔー・‐〔〕()‥]+【([^】]+?)】", r"\1", word)
+        word = re.sub(r"[ぁ-ゔー・‐〔〕()‥]+【([^】]+?)】", r"\1", word)
 # の【野】 と なれ山((やま))となれ
     if dictionary_name in till_first_space:
         word = word.split(" ")[0]
