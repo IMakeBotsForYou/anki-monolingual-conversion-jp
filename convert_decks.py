@@ -9,18 +9,14 @@ import re
 import pandas as pd
 
 from scraper import (
-    scrape_weblio,
     convert_word_to_hiragana,
     get_hiragana_only,
-    scrape_kotobank
 )
 
 from math import exp
-from bs4 import BeautifulSoup  # Optional, if the environment supports it
+from bs4 import BeautifulSoup 
 
 from convert_to_big_data import (
-    edit_big_data,
-    clean_definition,
     NUMBER_CHARS,
     KANJI,
     HIRAGANA,
@@ -39,10 +35,7 @@ from convert_to_big_data import (
 
 # from AnkiTools import anki_convert
 
-big_data_dictionary = {"Weblio": {}, "Kotobank": {}}
-not_in_weblio = []
-not_in_kotobank = []
-
+big_data_dictionary = {}
 
 
 # バグ　バグる
@@ -240,6 +233,171 @@ def get_versions_of_word(word, reading, word_to_readings_map, extended=False):
     return versions_final
 
 
+def parse_definition_html(html):
+    soup = BeautifulSoup(html, "html.parser")
+
+    result = {}
+
+    buttons = soup.find_all(
+        "button",
+        onclick=re.compile(r"toggleDefinition")
+    )
+
+    for button in buttons:
+        dictionary = button.get_text(strip=True)
+
+        onclick = button.get("onclick", "")
+        match = re.search(
+            r"toggleDefinition\('(.+?)'\)",
+            onclick
+        )
+
+        if not match:
+            continue
+
+        div_id = match.group(1)
+
+        container = soup.find("div", id=div_id)
+
+        if not container:
+            continue
+
+        entries = []
+
+        # =========================
+        # Special handling: Kenrowa
+        # =========================
+        if dictionary == "Kenrowa":
+
+            text = container.get_text("\n").strip()
+
+            text = "\n".join(
+                line.strip()
+                for line in text.splitlines()
+                if line.strip()
+            )
+
+            match = re.search(
+                r"^(.*?)\s*【(.*?)】\s*(.*)$",
+                text,
+                re.DOTALL
+            )
+
+            if match:
+                reading = match.group(1).strip()
+                word = match.group(2).strip()
+                definitions = match.group(3).strip()
+
+                entries.append({
+                    "word": word,
+                    "reading": reading,
+                    "definitions": definitions
+                })
+
+            else:
+                entries.append({
+                    "word": "",
+                    "reading": "",
+                    "definitions": text
+                })
+
+            result[dictionary] = entries
+            continue
+
+        # ====================================
+        # Standard structured dictionary parse
+        # ====================================
+
+        for entry_div in container.find_all("div", recursive=False):
+
+            p = entry_div.find("p")
+
+            if p:
+                content = p.decode_contents()
+            else:
+                content = entry_div.decode_contents()
+
+            text = BeautifulSoup(
+                content,
+                "html.parser"
+            ).get_text("\n").strip()
+
+            text = "\n".join(
+                line.strip()
+                for line in text.splitlines()
+                if line.strip()
+            )
+
+            word = ""
+            reading = ""
+            definitions = ""
+
+            # Standard:
+            # 漢字【よみ】:
+            standard_match = re.search(
+                r"^(.*?)【(.*?)】[:：]?\s*(.*)$",
+                text,
+                re.DOTALL
+            )
+
+            if standard_match:
+                word = standard_match.group(1).strip()
+                reading = standard_match.group(2).strip()
+                definitions = standard_match.group(3).strip()
+
+            else:
+                # Reverse:
+                # よみ 【漢字】
+                reverse_match = re.search(
+                    r"^(.*?)\s*【(.*?)】\s*(.*)$",
+                    text,
+                    re.DOTALL
+                )
+
+                if reverse_match:
+                    reading = reverse_match.group(1).strip()
+                    word = reverse_match.group(2).strip()
+                    definitions = reverse_match.group(3).strip()
+
+                else:
+                    # Completely unstructured entry
+                    definitions = text
+
+            definitions = definitions.replace(
+                "THIS IS A GUESS ENTRY",
+                ""
+            ).strip()
+
+            # Split multiple definitions
+            split_definitions = re.split(
+                r"(?:\n|<br\s*/?>)*As well as(?:\n|<br\s*/?>)*",
+                definitions
+            )
+
+            split_definitions = [
+                d.strip()
+                for d in split_definitions
+                if d.strip()
+            ]
+
+            if len(split_definitions) == 1:
+                split_definitions = split_definitions[0]
+
+            entry = {
+                "word": word,
+                "reading": reading,
+                "definitions": split_definitions
+            }
+
+            if "THIS IS A GUESS ENTRY" in text:
+                entry["tag"] = "guess"
+
+            entries.append(entry)
+
+        result[dictionary] = entries
+
+    return result
+
 def build_definition_html(data, text_mode_default=True):
     if not data:
         return None
@@ -274,17 +432,27 @@ def build_definition_html(data, text_mode_default=True):
 
     if not first_non_guess_definition:
         return
+                
 
     definitions_container = ""
-    for dictionary, entries in data.items():
-        if dictionary in ["Kotobank", "Weblio"]:
-            continue
+
+    
+    # Ensure Kenrowa appears first if present
+    ordered_items = sorted(
+        data.items(),
+        key=lambda item: (item[0] != "Kenrowa", item[0])
+    )
+
+
+    for dictionary, entries in ordered_items:
         is_guess = dictionary in guesses
         display = "none" if is_guess else "block"
         color = RED if is_guess else YELLOW  # Red for guesses, yellow otherwise
 
         current_dict_definitions = ""
         for info in entries:
+            if not info:
+                continue
             words = info["word"]
             reading = info["reading"]
             definitions = info["definitions"]
@@ -445,161 +613,6 @@ def entries_with_reading(reading, big_data, dictionary, word_to_readings_map=Non
     return []
 
 
-def clean_definition_weblio(text, dictionary):
-        text = re.sub(r"(?:<br />|\n)+", "<br />", text)
-
-        if dictionary == "デジタル大辞泉":
-            if "[可能]" in text:
-                text = text.split("[可能]")[0]
-            if "[派生]" in text:
-                text = text.split("[派生]")[0]
-            # Remove remains of example sentences
-            # ④: 納得する。合点がいく。・・・・・・・・・・・・・・・・・ (after parsing)
-            text = re.sub(r"・(?:・|／)+", "", text)
-            text = re.sub(r"。。+", "。", text)
-
-            # ・・・・・・・・・・・・・・・・・・・・・・・・・・・・・・・・／・。 。
-            # ［動ザ上一］「まん（慢）ずる」（サ変）の上一段化。
-            # ［動ザ上一］「みそんずる」（サ変）の上一段化。「話題の展覧会を―・じる」
-            # ［動ザ上一］「てん（転）ずる」（サ変）の上一段化。「攻勢に―・じる」
-
-            # First fix 「てん（転）ずる」 → "「転ずる」"
-            text = re.sub(
-                rf"「[{HIRAGANA}]+（([{KANJI}]+)）([{HIRAGANA}]+)」",
-                r"「\1\2」",
-                text,
-            )
-
-            # Then fix ［動ザ上一］「転ずる」（サ変）の上一段化。「攻勢に―・じる」 →  "⇒転ずる"
-            text = re.sub(
-                rf"(?:［.+?］)「(.+?)」の(?:..?段化|..語)({SUFFIX})",
-                r"⇒\1\2 ",
-                text,
-            )
-
-            # Remove
-            # ［連語］《形容詞、および形容詞型活用語の連体形活用語尾「かる」に推量の助動詞「めり」の付いた「かるめり」の音変化》
-            # ［連語］《連語「かんめり」の撥音の無表記》
-            text = re.sub(r"［.+?］《.+?》", r"", text)
-
-            # ［動ラ下一］［文］かきみだ・る［ラ下二］
-            # ［動ラ五（四）］
-            # ［動サ下一］［文］かきよ・す［サ下二］
-            # ［名］(スル)
-            # ［形動］［文］［ナリ］
-
-            text = re.sub(
-                rf"(?:［.+?］)+(?:[{HIRAGANA}・]+［.+?］)?(?:\(スル\))?",
-                r"",
-                text,
-            )
-
-            # 「一つ汲んで下されと、下々にも―に詞 (ことば) 遣ひて」〈浮・禁短気・二〉
-            text = re.sub(
-                rf"「[^」]+?」〈[^〉]+?〉",
-                r"",
-                text,
-            )
-
-            # 《季 新年》「餅網も焦げて―となりにけり／友二」
-            text = re.sub(
-                rf"《[^》]+?》「[^」]+?」",
-                r"",
-                text,
-            )
-            # デジタル大辞泉|||押掛ける【おしかける】：<br />おしか・く<br />１
-            text = re.sub(
-                rf"<br />[{HIRAGANA}・]+<br />",
-                r"<br />",
-                text,
-            )
-
-
-        text = recursive_nesting_by_category(text, weblio=True)
-
-        if isinstance(text, dict):
-            text = dict_to_text(text)
-        else:
-            text = text
-
-        text = re.sub(r"(?:<br />|\n)+", "<br />", text)
-        
-        return text.strip("<br />")
-
-
-def build_definition_from_weblio(result):
-    """
-    Structure of results:
-    {
-      "デジタル大辞泉": [
-        {
-          "word": "曖昧",
-          "reading": [
-            "あいまい"
-          ],
-          "definition": "１ 態度や物事がはっきりしないこと。また、そのさま。あやふや。「—な答え」\n２ 怪しくて疑わしいこと。いかがわしいこと。また、そのさま。「—宿(やど)」",
-          "synonyms": [
-            "多義的",
-            "紛らわしい"
-          ]
-        }
-      ],
-      "難読語辞典": [
-        {
-          "word": "曖昧",
-          "reading": [
-            "アイマイ"
-          ],
-          "definition": "はっきりしないこと",
-          "synonyms": []
-        }
-      ],
-      "百科事典": [
-        {
-          "word": "曖昧",
-          "reading": [
-            ""
-          ],
-          "definition": "曖昧（あいまい, 英語: ambiguity）または曖昧性（あいまいせい）は、狭義には、物事が二通り以上に決められ得ること、一意に決められないことを指す。",
-          "synonyms": []
-        }
-      ]
-    }
-    """
-
-    def get_text(entry):
-        word, reading, definition, synonyms = list(entry.values())
-        reading = f'【{reading}】' if reading else ''
-        synonyms = f"Similar words: {'、'.join(synonyms)}" if synonyms else ''
-        # return fr"{word}{reading}: <br />{definition}<br />{synonyms}"
-        return fr"{definition}<br />{synonyms}"
-
-    new_results = {}
-
-    for dictionary in result:
-        already_seen = []
-        new_results[dictionary] = []
-
-        for item in result[dictionary]:
-            word = item["word"]
-            reading = item["reading"]
-            if (word, reading) in already_seen:
-                continue
-
-            already_seen.append((word, reading))
-
-            definition = get_text(item)
-            definition = clean_definition_weblio(definition, dictionary)
-
-            new_results[dictionary].append({
-                "word": word,
-                "reading": reading,
-                "definition": definition    
-            })
-
-    return new_results
-
-
 def similarity_score(str1, str2):
     """Calculate similarity between two strings by the number of matching characters."""
     # Convert strings to sets to get unique characters in each
@@ -620,9 +633,6 @@ def get_definitions(
     priority_order,
     big_data,
     word_to_readings_map,
-    not_in_weblio,
-    not_in_kotobank,
-    look_in_weblio,
     stop_at=-1
 ):
     """Finds a word's definitions using its possible versions and
@@ -734,291 +744,22 @@ def get_definitions(
                 else:
                     already_seen.append(already_seen)
 
+                if dictionary not in return_data:
+                    return_data[dictionary] = [] 
 
-                if dictionary in ["Weblio", "Kotobank"]:
-                    for definition in definitions:
-                        dict_original = dictionary[:]
-                        dictionary, definition = definition.split("|||")
+                if isinstance(definitions, str):
+                    definition = [definitions]
 
-                        definition = re.sub(
-                            rf"({PREFIX})「(.+?) \((.+?)\) 」に同じ({SUFFIX})", r"\1⇒\3 (\2) \4 ", definition
-                        )
-
-                        definition = re.sub(
-                            rf"({PREFIX})「(.+?)」に同じ({SUFFIX})", r"\1⇒\2\3 ", definition
-                        )
-
-
-                        if f"{dict_original}>{dictionary}" not in return_data:
-                            return_data[f"{dict_original}>{dictionary}"] = [] 
-
-                        if isinstance(definition, str):
-                            definition = [definition]
-
-                        return_data[f"{dict_original}>{dictionary}"].append(
-                            {"definitions": definition, "word": words, "reading": reading_found, "tag": tag}
-                        )
-
-                    found = True
-
-                else:
-
-                    if dictionary not in return_data:
-                        return_data[dictionary] = [] 
-
-                    if isinstance(definitions, str):
-                        definition = [definitions]
-
-                    return_data[dictionary].append(
-                        {"definitions": [d for d in definitions if d != "⇒"], "word": words, "reading": reading_found, "tag": tag}
-                    )
-                    found = True
+                return_data[dictionary].append(
+                    {"definitions": [d for d in definitions if d != "⇒"], "word": words, "reading": reading_found, "tag": tag}
+                )
+                found = True
 
         except Exception as e:
             print(e)
             print(f"エラー。{word}【{reading}】 - 【{reading_found}】")
 
-    if look_in_weblio and not found:
-        dictionary = "Weblio"
-        if dictionary not in return_data:
-            return_data[dictionary] = []
-
-        already_tried = []
-        list_of_weblio_results = None
-        for version, version_reading in unique_versions:
-            if version not in not_in_weblio:
-                # print(unique_versions)
-                if version[-1] == "。":
-                    version = version[:-1]
-
-                if version in already_tried:
-                    continue 
-
-                list_of_weblio_results, not_in_weblio = get_from_weblio(
-                    version, big_data, not_in_weblio, desired_reading=version_reading
-                )
-                already_tried.append(version)
-
-            if not list_of_weblio_results and version_reading and version_reading not in not_in_weblio:
-
-                if version_reading in already_tried:
-                    continue 
-
-                already_tried.append(version_reading)
-
-                print(f"Trying reading 【{version_reading}】")
-
-                list_of_weblio_results, not_in_weblio = get_from_weblio(
-                    version_reading, big_data, not_in_weblio, desired_reading=version_reading
-                )
-
-
-            if list_of_weblio_results:
-                for (
-                    dictionary_name, entry_list
-                ) in list_of_weblio_results.items():
-                    for entry in entry_list:
-                        la_palabra = entry["word"]
-                        yomikata = entry["reading"]
-                        weblio_definition = entry["definition"]
-                        if isinstance(weblio_definition, str):
-                            weblio_definition = [weblio_definition]
-
-                        if dictionary_name not in return_data:
-                            return_data[dictionary_name] = []
-
-                        return_data[dictionary_name].append(
-                            {
-                                "definitions": weblio_definition,
-                                "word": la_palabra,
-                                "reading": yomikata,
-                                "tag": "guess"
-                            }
-                        )
-                        found = True
-
-
-    # This time it's kotobank
-    if look_in_weblio and not found:
-        dictionary = "Kotobank"
-        if dictionary not in return_data:
-            return_data[dictionary] = []
-        already_tried = []
-        for version, version_reading in unique_versions:
-
-            if version in already_tried:
-                continue 
-
-            if version in not_in_kotobank:
-                continue
-
-            list_of_kotobank_results, not_in_kotobank = get_from_kotobank(
-                version, big_data, not_in_kotobank
-            )
-
-            already_tried.append(version)
-
-            found = True
-
-            if list_of_kotobank_results:
-                for (
-                    dictionary_name, definition_list
-                ) in list_of_kotobank_results.items():
-
-                    # Shouldn't ever happen but okay
-                    if isinstance(definition_list, str):
-                        definition_list = [definition_list]
-
-                    if dictionary_name not in return_data:
-                        return_data[dictionary_name] = []
-
-                    return_data[dictionary_name].append(
-                        {
-                            "definitions": definition_list,
-                            "word": version,
-                            "reading": '',
-                            "tag": "guess"
-                        }
-                    )
-
-                    found = True
-
     return return_data
-
-
-def get_from_weblio(word, big_data, not_in_weblio, desired_reading=None):
-    if word in not_in_weblio:
-        return None, not_in_weblio
-
-    if not word:
-        return None, not_in_weblio
-
-    if "Weblio" not in big_data:
-        big_data["Weblio"] = {}
-    # Call `scrape_weblio`, which returns the result in the expected structure
-
-    print(f"Looking for '{word}' in Weblio.")
-    weblio_result = scrape_weblio(word.strip(), desired_reading)
-
-    if weblio_result:
-        # Use `build_definition_from_weblio` to format the definitions for each dictionary entry
-        if desired_reading:
-            # Filter the entries in `weblio_result` to only include those with the desired reading
-            weblio_result = {
-                key: [entry for entry in entries if desired_reading in entry["reading"]]
-                for key, entries in weblio_result.items()
-                if any(desired_reading in entry["reading"] for entry in entries)
-            } 
-
-        formatted_weblio_data = build_definition_from_weblio(weblio_result)
-        if formatted_weblio_data:
-            # Add the formatted result to `big_data` under the "Weblio" dictionary
-
-            for dictionary_name, data in formatted_weblio_data.items():
-                for entry in data:
-
-                    if entry["reading"] not in big_data["Weblio"]:
-                        big_data["Weblio"][entry["reading"]] = {}
-
-                    if entry["word"] not in big_data["Weblio"][entry["reading"]]:
-                        big_data["Weblio"][entry["reading"]][entry["word"]] = []
-
-                    definition = f"{dictionary_name}|||{entry['definition']}"
-
-                    if definition not in big_data["Weblio"][entry["reading"]][entry["word"]]:
-                        big_data["Weblio"][entry["reading"]][entry["word"]].append(
-                            f"{dictionary_name}|||{entry['definition']}"
-                        )
-            
-
-            save_data = []
-            with open("Weblio/term_bank_1.json", "w+", encoding="utf-8") as f:
-
-                for reading_found in big_data["Weblio"]:
-                    for word_found, definitions in big_data["Weblio"][reading_found].items():
-                        word_and_reading  = [
-                            word_found,
-                            reading_found,
-                            '',
-                            '',
-                            '',
-                            definitions
-                        ]
-                        if word_and_reading not in save_data:
-                            save_data.append(word_and_reading)
-
-                        word_and_reading[0] = reading_found
-                        if word_and_reading not in save_data:
-                            save_data.append(word_and_reading)
-
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
-                print("Saved finding")
-            return formatted_weblio_data, not_in_weblio
-
-                # If no results, add the word to `not_in_weblio`
-    print(f"Not found in weblio add {word} to `not_in_weblio`")
-    not_in_weblio.append(word)
-    # save_not_in_weblio(not_in_weblio)
-    return None, not_in_weblio
-
-
-def get_from_kotobank(word, big_data, not_in_kotobank):
-
-    if not word:
-        return None
-
-    if word in not_in_kotobank:
-        return None 
-
-    if "Kotobank" not in big_data:
-        big_data["Kotobank"] = {}
-    # Call `scrape_weblio`, which returns the result in the expected structure
-
-    print(f"Looking for '{word}' in Kotobank.")
-    kotobank_result = scrape_kotobank(word.strip())
-
-    if kotobank_result:
-        for dictionary_name in kotobank_result.keys():
-            for definition_found in kotobank_result[dictionary_name]:
-                if "Kotobank" not in big_data:
-                    big_data["Kotobank"] = {}
-
-                if "" not in big_data["Kotobank"]:
-                    big_data["Kotobank"][""] = {}
-
-                if word not in big_data["Kotobank"][""]:
-                    big_data["Kotobank"][""][word] = []
-
-                if definition_found not in big_data["Kotobank"][""][word]:
-                    big_data["Kotobank"][""][word].append(
-                        f"{dictionary_name}|||{definition_found}"
-                    )
-
-        save_data = []
-        with open("Kotobank/term_bank_1.json", "w+", encoding="utf-8") as f:
-
-            for reading_found in big_data["Kotobank"]:
-                for word_found, definitions in big_data["Kotobank"][''].items():
-
-                    save_data.append(
-                        [
-                        word_found,
-                        '',
-                        '',
-                        '',
-                        '',
-                        definitions
-                        ]
-                    )
-
-            json.dump(save_data, f, ensure_ascii=False, indent=2)
-            print("Saved finding")
-        return kotobank_result, not_in_kotobank
-    else:
-        print(f"Not found. Adding {word} to not_in_kotobank")
-        not_in_kotobank.append(word)
-
-    return None, not_in_kotobank
 
 def get_ref_numbers(referenced_word):
     """
@@ -1056,10 +797,7 @@ def link_up(
     definition_original,
     dictionary_path,
     big_data,
-    word_to_readings_map,
-    not_in_weblio,
-    not_in_kotobank,
-    look_in_weblio=False,
+    word_to_readings_map
 ):
     """
     Take links to other entries in the target entry
@@ -1077,9 +815,6 @@ def link_up(
     definition = definition_original[:]
     if definition == "":
         return definition, dictionary_path
-
-    # if dictionary_path.startswith("Weblio") or dictionary_path.startswith("Kotobank"):
-        # return definition, dictionary_path
 
     definition = definition.split("<br /> Linked")[0]
     definition = re.sub(rf"([{NUMBER_CHARS}])<br ?\/>", r"\1", definition)
@@ -1149,7 +884,7 @@ def link_up(
             ref_definitions = None
             for reading_found in readings:
                 if dictionary_path not in big_data:
-                    dictionary_paths = ["Weblio", "Kotobank"]
+                    dictionary_paths = []
                 else:
                     dictionary_paths = [dictionary_path]                    
 
@@ -1173,23 +908,6 @@ def link_up(
                                 the_key
                             ]
 
-                        elif d_p == "Weblio":
-                            print("Link up weblio")
-
-                            weblio_ref_definitions, not_in_weblio = get_from_weblio(
-                                referenced_word, big_data, not_in_weblio, desired_reading=reading_found
-                            )
-                            for d in weblio_ref_definitions:
-                                ref_definitions.extend(weblio_ref_definitions[d]["definitions"])
-
-                        elif d_p == "Kotobank":
-                            kotobank_ref_definitions, not_in_kotobank = get_from_kotobank(
-                                referenced_word, big_data, not_in_kotobank
-                            )
-
-                            for d in kotobank_ref_definitions:
-                                ref_definitions.extend(kotobank_ref_definitions[d]["definitions"])
-                        
 
                         ref_definitions = list(set(ref_definitions if ref_definitions else []))
 
@@ -1275,15 +993,12 @@ def link_up(
 
 def process_deck(
     deck,
-    deck_file_name,
     vocab_field_name,
     reading_field_name,
     definitions_field_name,
     dictionary_priority_order,
     big_data,
     word_to_readings_map,
-    not_in_weblio,
-    not_in_kotobank
 ):
     """
     Processes an ANKI deck by adding monolingual definitions (XLSX version).
@@ -1339,11 +1054,8 @@ def process_deck(
             cleaned_word,
             cleaned_reading,
             dictionary_priority_order,
-            big_data_dictionary,
+            big_data,
             word_to_readings_map,
-            not_in_weblio,
-            not_in_kotobank,
-            look_in_weblio=True,
             stop_at=-1
         )
 
@@ -1375,9 +1087,6 @@ def process_deck(
                                 dictionary,
                                 big_data_dictionary,
                                 word_to_readings_map,
-                                not_in_weblio,
-                                not_in_kotobank,
-                                look_in_weblio=False,
                             )
 
                             word_definitions[dictionary][j]["definitions"][k] = (
@@ -1472,40 +1181,9 @@ def process_deck(
             deck_cleaned[vocab_field_name], deck_cleaned[reading_field_name]
         )
     ]
-    
-    # output_file = f"[FIXED] {deck_file_name}.csv"
-
-    # deck_cleaned.to_excel(output_file, index=False)
-    not_in_weblio = list(set(not_in_weblio))
-    not_in_kotobank = list(set(not_in_kotobank))
-
-    save_not_in_weblio(not_in_weblio)
-    save_not_in_kotobank(not_in_kotobank)
 
     return deck_cleaned
 
-
-def save_not_in_weblio(not_in_weblio):
-    with open("not_in_weblio.json", "w+", encoding="utf-8") as f:
-        json.dump(not_in_weblio, f, ensure_ascii=False)
-
-def save_not_in_kotobank(not_in_kotobank):
-    with open("not_in_kotobank.json", "w+", encoding="utf-8") as f:
-        json.dump(not_in_kotobank, f, ensure_ascii=False)
-
-
-def load_not_in_weblio():
-    not_in_weblio_data = []
-    with open("not_in_weblio.json", "r", encoding="utf-8") as f:
-        not_in_weblio_data = json.load(f)
-    return not_in_weblio_data
-
-
-def load_not_in_kotobank():
-    not_in_kotobank_data = []
-    with open("not_in_kotobank.json", "r", encoding="utf-8") as f:
-        not_in_kotobank_data = json.load(f)
-    return not_in_kotobank_data
 
 
 def load_word_to_readings_map():
@@ -1518,14 +1196,11 @@ def load_word_to_readings_map():
 def get_definitions_for_one_word(word, reading):
 
     word_definitions = get_definitions(
-        cleaned_word,
-        cleaned_reading,
+        word,
+        reading,
         PRIORITY_ORDER,
         big_data_dictionary,
         word_to_readings_map,
-        not_in_weblio,
-        not_in_kotobank,
-        look_in_weblio=True,
         stop_at=-1
     )
 
@@ -1557,9 +1232,6 @@ def get_definitions_for_one_word(word, reading):
                             dictionary,
                             big_data_dictionary,
                             word_to_readings_map,
-                            not_in_weblio,
-                            not_in_kotobank,
-                            look_in_weblio=False,
                         )
 
                         word_definitions[dictionary][j]["definitions"][k] = (
@@ -1570,20 +1242,23 @@ def get_definitions_for_one_word(word, reading):
                 # raise e
                 print("oh no", definition, word, reading, "is die.")
 
-    for dictionary in word_definitions:
-        word_definitions[dictionary] = [
-            entry for entry in word_definitions[dictionary] if entry
-        ]
+    # for dictionary in word_definitions:
+    #     word_definitions[dictionary] = [
+    #         entry for entry in word_definitions[dictionary] if entry
+    #     ]
 
-        similarity_debuf[dictionary] = exp(1 - similarity_score(reading, cleaned_reading))
-        similarity_debuf[dictionary] += exp(1 - similarity_score(word, cleaned_word))
+    #     similarity_debuf[dictionary] = exp(1 - similarity_score(reading, cleaned_reading))
+    #     similarity_debuf[dictionary] += exp(1 - similarity_score(word, cleaned_word))
 
 
     def get_total_length(entry):
         length = 0
         for word in entry:
-            # print(word)
-            length += len("".join(word["definitions"]))
+            # print(json.dumps(word, indent=2, ensure_ascii=False))
+            if "definitions" not in word:
+                length += 0
+            else:
+                length += len("".join(word["definitions"]))
         return length
 
     def get_index(dictionary):
@@ -1595,24 +1270,30 @@ def get_definitions_for_one_word(word, reading):
 
         definitions = item[1]
         dictionary_name = item[0]
-
+        if not definitions[0]:
+            return 1000
         length_debuf = get_total_length(definitions)//100
         priority_index = get_index(dictionary_name) 
+
         priority_debuf = len(PRIORITY_ORDER) if any([d["tag"] for d in definitions]) else 0
-        return length_debuf+priority_index+priority_debuf+similarity_debuf[dictionary_name]
+        return length_debuf+priority_index+priority_debuf#+similarity_debuf[dictionary_name]
 
 
-    original = word_definitions.copy()
+
+
     word_definitions = dict(sorted(word_definitions.items(), 
             key=lambda item: get_new_index(item)))
 
       
     definition_html = build_definition_html(word_definitions)
-    print(definition_html)
+    if definition_html is None:
+        print(f"Couldn't find definition for {word}【{reading}】")
+        return ""
+    return definition_html
     # print(json.dumps(word_definitions, indent=2, ensure_ascii=False))
 
 
-def change_to_monolingual(deck_name, big_data, not_in_weblio, not_in_kotobank, word_to_readings_map, field_settings):
+def change_to_monolingual(deck_name, big_data, word_to_readings_map, field_settings):
     """
     Converts an ANKI deck from bilingual to monolingual using dictionary files.
 
@@ -1628,7 +1309,7 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio, not_in_kotobank, w
     # # Read the .txt file, automatically using the first row as header
 
     df = pd.read_csv(
-        f"txt_exports/{deck_name}.txt", sep="\t", header=0
+        f"{deck_name}", sep=",", header=0
     )  # Change 'sep' if needed based on your file
 
     # df.to_excel(f"{deck_name}.xlsx", index=False)
@@ -1636,15 +1317,12 @@ def change_to_monolingual(deck_name, big_data, not_in_weblio, not_in_kotobank, w
 
     df = process_deck(
         deck=df,
-        deck_file_name=deck_name,
         vocab_field_name=vocab_field_name,  # VocabKanji
         reading_field_name=reading_field_name,  # VocabFurigana
         definitions_field_name=definitions_field_name,  # VocabDef
         dictionary_priority_order=PRIORITY_ORDER,
         big_data=big_data,
         word_to_readings_map=word_to_readings_map,
-        not_in_weblio=not_in_weblio,
-        not_in_kotobank=not_in_kotobank
     )
 
     # Convert to CSV and cleanup
@@ -1662,30 +1340,29 @@ if __name__ == "__main__":
     big_data_dictionary = load_big_data(
         big_data_dictionary=big_data_dictionary, override=False
     )
-    not_in_weblio = load_not_in_weblio()
-    not_in_kotobank = load_not_in_kotobank()
 
     word_to_readings_map = load_word_to_readings_map()
 
 
     # UNCOMMENT THIS TO GET A DEFINITION FOR A SINGLE WORD
 
-    # while True:
-    #     # cleaned_word = "枯れ木も山の賑わい"
-    #     # cleaned_reading = "かれきもやまのにぎわい"
-    #     cleaned_word = input("Enter word (w/ kanji): ")
-    #     cleaned_reading = input("Enter word reading (hiragana only): ")
-    #     get_definitions_for_one_word(cleaned_word, cleaned_reading)
-    # save_to_big_data(big_data_dictionary)
+    while True:
+        # cleaned_word = "枯れ木も山の賑わい"
+        # cleaned_reading = "かれきもやまのにぎわい"
+        cleaned_word = input("Enter word (w/ kanji): ")
+        cleaned_reading = input("Enter word reading (hiragana only): ")
+        get_definitions_for_one_word(cleaned_word, cleaned_reading)
     
 
-    field_settings = {
-        "vocab": input("Vocab field name > "),
-        "reading": input("Reading field name > "),
-        "definition": input("Meaning field name (will be overridden) > ")
-    }
+    # field_settings = {
+    #     "vocab": input("Vocab field name > "),
+    #     "reading": input("Reading field name > "),
+    #     "definition": input("Meaning field name (will be overridden) > ")
+    # }
+    # for filename in os.listdir("text_files"):
+    #     if filename.endswith(".txt"):
+    #         file_path = os.path.join("text_files", filename)
 
-    deck_name = [input("Deck name (./txt_exports/{deck}.txt|w/o extention) > ")] 
-    change_to_monolingual(deck_name, big_data_dictionary, not_in_weblio, not_in_kotobank, word_to_readings_map, field_settings)
-    
-  
+    #         with open(file_path, "r", encoding="utf-8") as file:
+    #             content = file.read()
+    #             change_to_monolingual(file_path, big_data_dictionary, word_to_readings_map, field_settings)
