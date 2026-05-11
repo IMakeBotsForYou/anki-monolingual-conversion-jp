@@ -25,10 +25,8 @@ PRIORITY_ORDER = [
     "三省堂国語辞典",
     "旺文社国語辞典 第十一版",
     "大辞泉",
-    "大辞林",
     "使い方の分かる 類語例解辞典",
-    "Weblio",
-    "Kotobank"
+    "Kenrowa"
 ]
 
 OPENING_BRACKETS = r"<（「\[【〔\(『［〈《〔〘｟"
@@ -215,8 +213,6 @@ def segment_by_category(text, category, first_category, level, weblio=False):
     previous = 0  # Keep track of the last processed key's value
     previous_key = None
     i = 0
-    if "でのつけ根の下がわにあたる部分" in text:
-        print(segments)
     while i < len(segments) - 1:
         try:
 
@@ -461,8 +457,7 @@ def edit_big_data(big_data, dictionary_path, reading, word, definitions):
     big_data[dictionary_path][reading][word] = list(
         set(big_data[dictionary_path][reading][word])
     )
-    # if reading == "かかりむすび":
-    # print(word)
+
     if word not in word_to_readings_map:
         word_to_readings_map[word] = []
 
